@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Pre-build xbow benchmark images (run on the host that runs the platform).
+
+For each benchmark (first --n of them): find the Dockerfile declaring ARG FLAG,
+copy the host CA bundle into its build context, patch the Dockerfile
+(host CA + CN apt/apk/pip mirrors — avoids build hangs on China/throttled nets),
+run `make build` (common.mk injects the deterministic flag), then restore the
+Dockerfile and remove the CA bundle. Logs per-benchmark ok/fail/skip; continues
+on failure. Idempotent: benchmarks whose guard file exists (already built) are
+skipped by make. Run in background on slow (vfs) hosts.
+
+  python3 scripts/prebuild.py --repo /root/validation-benchmarks --n 60 --log /root/prebuild.log
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+CA_PATH = "/etc/ssl/certs/ca-certificates.crt"
+
+# inserted right after the first FROM line (applies to the build stage)
+PATCH = (
+    "COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n"
+    "RUN sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; "
+    "s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; "
+    "s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
+    "    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories 2>/dev/null; true\n"
+    "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1\n"
+)
+
+
+def find_flag_dockerfile(bench_dir: Path) -> Path | None:
+    for df in sorted(bench_dir.rglob("Dockerfile")):
+        try:
+            txt = df.read_text(errors="replace")
+        except Exception:
+            continue
+        if re.search(r"^\s*ARG\s+FLAG\b", txt, re.MULTILINE):
+            return df
+    return None
+
+
+def insert_patch(text: str) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("FROM "):
+            return "\n".join(lines[: i + 1] + [PATCH] + lines[i + 1:]) + "\n"
+    return text
+
+
+def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 1200) -> str:
+    df = find_flag_dockerfile(bench_dir)
+    if df is None:
+        return "skip(no ARG FLAG Dockerfile)"
+    ctx = df.parent
+    ca = ctx / "ca-certificates.crt"
+    orig = df.read_text()
+    try:
+        ca.write_bytes(ca_bytes)
+        df.write_text(insert_patch(orig))
+        p = subprocess.run(["make", "build"], cwd=bench_dir,
+                           capture_output=True, text=True, timeout=timeout)
+        if p.returncode == 0:
+            return "ok"
+        tail = (p.stderr or p.stdout or "")[-400:].replace("\n", " ")
+        return f"FAIL(rc={p.returncode}): {tail}"
+    except subprocess.TimeoutExpired:
+        return "FAIL(timeout)"
+    except Exception as e:
+        return f"FAIL(exc): {e}"
+    finally:
+        try:
+            df.write_text(orig)
+            if ca.exists():
+                ca.unlink()
+        except Exception:
+            pass
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default="/root/validation-benchmarks")
+    ap.add_argument("--n", type=int, default=60)
+    ap.add_argument("--log", default="/root/prebuild.log")
+    ap.add_argument("--ca", default=CA_PATH)
+    args = ap.parse_args()
+
+    bdir = Path(args.repo) / "benchmarks"
+    if not bdir.exists():
+        print(f"ERROR: {bdir} not found", file=sys.stderr)
+        return 1
+    ca_path = Path(args.ca)
+    if not ca_path.exists():
+        print(f"ERROR: CA bundle {ca_path} not found", file=sys.stderr)
+        return 1
+    ca_bytes = ca_path.read_bytes()
+
+    # ensure dockerd is up
+    info = subprocess.run(["docker", "info"], capture_output=True)
+    if info.returncode != 0:
+        print("ERROR: docker daemon not reachable; start dockerd first", file=sys.stderr)
+        return 1
+
+    benches = sorted(p for p in bdir.iterdir() if p.is_dir() and p.name.startswith("XBEN-"))[: args.n]
+    ok = fail = skip = 0
+    with open(args.log, "a") as log:
+        log.write(f"\n=== prebuild start {time.strftime('%F %T')} n={len(benches)} repo={args.repo} ===\n")
+        log.flush()
+        for b in benches:
+            t = time.time()
+            res = build_one(b, ca_bytes)
+            dt = time.time() - t
+            line = f"{b.name}: {res} ({dt:.0f}s)"
+            log.write(line + "\n")
+            log.flush()
+            print(line, flush=True)
+            if res == "ok":
+                ok += 1
+            elif res.startswith("skip"):
+                skip += 1
+            else:
+                fail += 1
+        summary = f"=== done {time.strftime('%F %T')}: ok={ok} fail={fail} skip={skip} (of {len(benches)}) ==="
+        log.write(summary + "\n")
+        print(summary, flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
