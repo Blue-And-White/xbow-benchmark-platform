@@ -1,0 +1,33 @@
+services:
+  platform:
+    build: .
+    image: xben-platform:latest
+    container_name: xben-platform
+    ports:
+      - "8000:8000"
+    volumes:
+      # talk to the host/daemon docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # the xbow repo MUST be mounted at the same absolute path the docker
+      # daemon sees, so challenge build contexts resolve on the daemon side.
+      - ${REPO_DIR}:${REPO_DIR}:ro
+      # per-attempt work dirs + generated flag files must be daemon-visible too.
+      - ${RUNS_DIR}:${RUNS_DIR}
+      - ./flag_manifest.json:/app/flag_manifest.json:ro
+      - xben-data:/data
+    environment:
+      XBEN_REPO_DIR: ${REPO_DIR}
+      XBEN_RUNS_DIR: ${RUNS_DIR}
+      XBEN_DATA_DIR: /data
+      XBEN_FLAG_MANIFEST: /app/flag_manifest.json
+      XBEN_ADMIN_USER: ${ADMIN_USER:-admin}
+      XBEN_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      XBEN_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      XBEN_SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-prod}
+      XBEN_REGISTRATION_CODE: ${REGISTRATION_CODE:-ROOTLAB@123}
+      XBEN_ALLOW_DIRECT_PORT: ${ALLOW_DIRECT_PORT:-true}
+      XBEN_CHALLENGE_HOST: ${CHALLENGE_HOST:-127.0.0.1}
+    restart: unless-stopped
+
+volumes:
+  xben-data:

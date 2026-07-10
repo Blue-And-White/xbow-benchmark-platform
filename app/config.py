@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # --- access ---
     secret_key: str = "dev-secret-change-in-prod"     # session cookie signing
     public_base_url: str = "http://localhost:8000"   # used to build proxied challenge URLs
+    # where running challenge containers are reachable FROM the platform process.
+    # "127.0.0.1" when the platform runs on the host; "host.docker.internal"
+    # when the platform itself runs inside a container (challenge ports are
+    # published on the docker host, not the platform container's loopback).
+    challenge_host: str = "127.0.0.1"
     allow_direct_port: bool = True                    # also return direct http://host:port URLs
     platform_host: str = "0.0.0.0"
     platform_port: int = 8000

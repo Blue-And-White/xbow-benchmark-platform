@@ -27,3 +27,6 @@ runs/
 
 # zcode internal
 .zcode/
+
+# local env (secrets / host paths)
+.env

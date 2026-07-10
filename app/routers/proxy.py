@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db import get_db
 from ..models import Attempt, AttemptStatus
 
@@ -26,7 +27,7 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     att = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
     if not att or att.status != AttemptStatus.in_progress.value or not att.host_port:
         raise HTTPException(404, "challenge not running")
-    target = f"http://127.0.0.1:{att.host_port}/{path}"
+    target = f"http://{settings.challenge_host}:{att.host_port}/{path}"
     if request.url.query:
         target += f"?{request.url.query}"
 
