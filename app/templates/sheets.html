@@ -15,20 +15,33 @@
 {% endif %}
 <div class="grid gap-3">
   {% for s in sheets %}
+  {% set st = sheet_stats[s.id] %}
+  {% set pct = ((st.solved * 100 + st.total - 1) // st.total) if (st.total and st.solved) else 0 %}
   <div class="bg-white p-4 rounded shadow flex items-center gap-4">
-    <div class="flex-1">
+    <div class="flex-1 min-w-0">
       <div class="font-semibold">{{ s.name }}</div>
       <div class="text-xs text-slate-400">id={{ s.id }} · {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
       <div class="mt-1 flex items-center gap-2 text-xs">
         <code class="bg-slate-100 px-2 py-1 rounded select-all">{{ s.api_key }}</code>
         <button onclick="navigator.clipboard.writeText('{{ s.api_key }}');this.textContent='已复制'" class="text-blue-600 hover:underline">复制</button>
       </div>
+      <div class="mt-2 flex items-center gap-2">
+        <span class="text-sm font-semibold text-emerald-600">{{ st.solved }}</span><span class="text-xs text-slate-400">/{{ st.total }} 已解</span>
+        {% if st.running %}<span class="text-xs text-amber-600">· 作答中 {{ st.running }}</span>{% endif %}
+        <div class="flex-1 h-2 bg-slate-100 rounded overflow-hidden max-w-[200px]">
+          <div class="h-full bg-emerald-500" style="width:{{ pct }}%"></div>
+        </div>
+        <span class="text-[10px] text-slate-400">{{ pct }}%</span>
+      </div>
+      <div class="mt-1 text-[11px] text-slate-400">
+        {% for lv, d in st.levels.items() %}<span class="mr-3">L{{ lv }} {{ d.solved }}/{{ d.total }}</span>{% endfor %}
+      </div>
     </div>
-    <div class="flex gap-2">
-      <a href="/sheets/{{ s.id }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500">进入看板</a>
+    <div class="flex flex-col gap-2 shrink-0">
+      <a href="/sheets/{{ s.id }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 text-center">进入看板</a>
       <form method="post" action="/sheets/{{ s.id }}/delete"
             onsubmit="return confirm('删除这张表？会停掉该表里跑着的题、清掉所有记录，不可恢复。')">
-        <button class="bg-rose-500 text-white px-3 py-2 rounded hover:bg-rose-400">删除</button>
+        <button class="bg-rose-500 text-white px-3 py-2 rounded hover:bg-rose-400 w-full">删除</button>
       </form>
     </div>
   </div>

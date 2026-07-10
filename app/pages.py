@@ -146,7 +146,13 @@ async def logout(request: Request) -> RedirectResponse:
 async def sheets_page(request: Request, user: User = Depends(current_user),
                       db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(select(SolveSheet).where(SolveSheet.user_id == user.id).order_by(SolveSheet.id))).scalars().all()
-    return templates.TemplateResponse(request, "sheets.html", {"user": user, "sheets": rows})
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    atts_by_sheet: dict[int, dict[int, Attempt]] = {}
+    if rows:
+        for a in (await db.execute(select(Attempt).where(Attempt.sheet_id.in_([s.id for s in rows])))).scalars().all():
+            atts_by_sheet.setdefault(a.sheet_id, {})[a.challenge_id] = a
+    sheet_stats = {s.id: _stats(challs, atts_by_sheet.get(s.id, {})) for s in rows}
+    return templates.TemplateResponse(request, "sheets.html", {"user": user, "sheets": rows, "sheet_stats": sheet_stats})
 
 
 @router.post("/sheets", include_in_schema=False)
