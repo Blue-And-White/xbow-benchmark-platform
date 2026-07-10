@@ -54,6 +54,47 @@ async def _atts_map(db: AsyncSession, sheet_id: int) -> dict[int, Attempt]:
             (await db.execute(select(Attempt).where(Attempt.sheet_id == sheet_id))).scalars().all()}
 
 
+def _status_of(c: Challenge, atts: dict[int, Attempt]) -> str:
+    a = atts.get(c.id)
+    if a and a.status == "solved":
+        return "solved"
+    if a and a.status == "in_progress":
+        return "in_progress"
+    return "not_started"
+
+
+def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
+    solved = running = 0
+    levels: dict[str, dict] = {}
+    for c in challs:
+        st = _status_of(c, atts)
+        if st == "solved":
+            solved += 1
+        elif st == "in_progress":
+            running += 1
+        lv = c.level or "?"
+        d = levels.setdefault(lv, {"total": 0, "solved": 0, "running": 0})
+        d["total"] += 1
+        if st == "solved":
+            d["solved"] += 1
+        elif st == "in_progress":
+            d["running"] += 1
+    total = len(challs)
+    return {
+        "total": total, "solved": solved, "running": running,
+        "unsolved": total - solved, "levels": levels,
+    }
+
+
+async def _board_ctx(db: AsyncSession, sheet: SolveSheet, user: User) -> dict:
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    atts = await _atts_map(db, sheet.id)
+    return {
+        "sheet": sheet, "challenges": challs, "atts": atts,
+        "cfg": await get_config(db), "user": user, "stats": _stats(challs, atts),
+    }
+
+
 # ----------------------------- auth pages ----------------------------- #
 @router.get("/", include_in_schema=False)
 async def index(request: Request) -> RedirectResponse:
@@ -121,25 +162,14 @@ async def sheets_create(request: Request, name: str = Form(...), user: User = De
 async def board_page(request: Request, sheet_id: int, user: User = Depends(current_user),
                      db: AsyncSession = Depends(get_db)):
     sheet = await _sheet_for(db, user, sheet_id)
-    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
-    atts = await _atts_map(db, sheet.id)
-    solved = sum(1 for c in challs if (a := atts.get(c.id)) and a.status == "solved")
-    running = sum(1 for c in challs if (a := atts.get(c.id)) and a.status == "in_progress")
-    return templates.TemplateResponse(request, "board.html", {
-        "user": user, "sheet": sheet, "challenges": challs, "atts": atts,
-        "solved": solved, "running": running, "total": len(challs),
-    })
+    return templates.TemplateResponse(request, "board.html", await _board_ctx(db, sheet, user))
 
 
 @router.get("/sheets/{sheet_id}/board", response_class=HTMLResponse, include_in_schema=False)
 async def board_partial(request: Request, sheet_id: int, user: User = Depends(current_user),
                         db: AsyncSession = Depends(get_db)):
     sheet = await _sheet_for(db, user, sheet_id)
-    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
-    atts = await _atts_map(db, sheet.id)
-    return templates.TemplateResponse(request, "_board.html", {
-        "sheet": sheet, "challenges": challs, "atts": atts, "cfg": await get_config(db), "user": user,
-    })
+    return templates.TemplateResponse(request, "_board.html", await _board_ctx(db, sheet, user))
 
 
 # ----------------------------- HTMX row actions ----------------------------- #
