@@ -1,0 +1,26 @@
+# xbow upstream repo (fetched, 1.25GB — not our code)
+validation-benchmarks/
+vb.tar.gz
+*.tar.gz
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# platform runtime data
+data/
+*.sqlite
+*.sqlite-journal
+*.db
+
+# local challenge per-attempt working dirs (generated at runtime)
+runs/
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/
