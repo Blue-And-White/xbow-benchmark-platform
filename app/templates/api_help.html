@@ -6,56 +6,94 @@
   <a href="/docs" target="_blank" class="text-sm bg-slate-900 text-white px-3 py-1.5 rounded hover:bg-slate-700">Swagger /docs ↗</a>
 </div>
 
-<div class="bg-white rounded shadow p-5 space-y-4 text-sm">
-  <div>
-    <h2 class="font-semibold mb-1">模型</h2>
-    <p class="text-slate-600">用户注册（需注册码）→ 登录 → 创建若干<b>解题情况表</b>，每张表生成一个独立的 <b>api-key</b>。这张表下所有"启动/提交/停止"都用该 api-key 鉴权，绑定到这张表。</p>
-  </div>
+{# ---- 核心：用 api-key 做题 ---- #}
+<div class="bg-white rounded shadow p-5 mb-4">
+  <h2 class="font-semibold text-lg mb-2">用 api-key 做题（核心流程）</h2>
+  <p class="text-sm text-slate-600 mb-3">在「我的解题表」建一张表后会得到一个 <b>api-key</b>。拿这一个 key 就能完成整个做题闭环——看题、启动、提交、关闭，无需登录态。下方 <code>$KEY</code> 替换为你的 api-key。</p>
 
-  <div>
-    <h2 class="font-semibold mb-1">你的 api-key</h2>
-    {% if not sheets %}<p class="text-slate-400">还没有解题表，先去 <a href="/sheets" class="text-blue-600">新建一张</a>。</p>{% endif %}
-    <div class="space-y-1">
-      {% for s in sheets %}
-      <div class="flex items-center gap-2">
-        <span class="text-slate-500">{{ s.name }}:</span>
-        <code class="bg-slate-100 px-2 py-0.5 rounded select-all">{{ s.api_key }}</code>
+  <div class="space-y-3 text-sm">
+    <div class="flex gap-3">
+      <span class="flex-none w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">1</span>
+      <div class="flex-1">
+        <div><b>看题目列表 + 本看板解题情况</b></div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -H "X-API-Key: $KEY" http://localhost:8000/api/challenges
+# 返回 104 题，每题含 status: not_started | in_progress | solved</code></pre>
       </div>
-      {% endfor %}
     </div>
-    <p class="text-xs text-slate-400 mt-1">下方示例中 <code>$KEY</code> 替换为你的 api-key。</p>
-  </div>
 
+    <div class="flex gap-3">
+      <span class="flex-none w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">2</span>
+      <div class="flex-1">
+        <div><b>启动一题</b>（注入本次随机 flag，返回靶机地址）</div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" \
+  http://localhost:8000/api/challenges/XBEN-001-24/start
+# {attempt_id, url(反代), direct_url}  -> 靶机环境已就绪</code></pre>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="flex-none w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">3</span>
+      <div class="flex-1">
+        <div><b>访问靶机解题</b>，拿到 flag（用返回的 <code>url</code> 或 <code>direct_url</code>）</div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl http://localhost:8000/c/&lt;attempt_id&gt;/   # 反代地址</code></pre>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="flex-none w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center">4</span>
+      <div class="flex-1">
+        <div><b>提交 flag</b> — 正确则平台<b>自动关闭并清理靶机容器</b>（容器+数据卷+网络，无需手动停）</div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"flag":"FLAG{...}"}' \
+  http://localhost:8000/api/challenges/XBEN-001-24/submit
+# 正确: {"correct":true,"solve_duration_ms":...}  -> 容器已清理
+# 错误: {"correct":false}  -> 本次尝试保留，可继续解</code></pre>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="flex-none w-6 h-6 rounded-full bg-rose-500 text-white text-xs flex items-center justify-center">5</span>
+      <div class="flex-1">
+        <div><b>放弃 / 手动关闭</b>（解不出时，清掉本次 flag+计时，题回到未开始）</div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" \
+  http://localhost:8000/api/challenges/XBEN-001-24/stop</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---- 端点表 ---- #}
+<div class="bg-white rounded shadow p-5 mb-4">
+  <h2 class="font-semibold text-lg mb-2">端点一览</h2>
   <div class="overflow-x-auto">
     <table class="w-full text-xs">
       <thead class="bg-slate-100 text-slate-600"><tr><th class="px-3 py-2 text-left">方法</th><th class="px-3 py-2 text-left">路径</th><th class="px-3 py-2 text-left">鉴权</th><th class="px-3 py-2 text-left">说明</th></tr></thead>
       <tbody class="font-mono">
-        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/register</td><td class="px-3 py-2">注册码</td><td class="px-3 py-2 font-sans">注册账号 {registration_code, username, password}</td></tr>
-        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/login</td><td class="px-3 py-2">用户名密码</td><td class="px-3 py-2 font-sans">登录(返回会话cookie)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/register</td><td class="px-3 py-2">注册码</td><td class="px-3 py-2 font-sans">注册账号 {registration_code,username,password}</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/login</td><td class="px-3 py-2">账密</td><td class="px-3 py-2 font-sans">登录(会话cookie，用于网页端)</td></tr>
         <tr class="border-t"><td class="px-3 py-2">GET/POST</td><td class="px-3 py-2">/api/sheets</td><td class="px-3 py-2">登录</td><td class="px-3 py-2 font-sans">列/建解题表(返回 api_key)</td></tr>
         <tr class="border-t"><td class="px-3 py-2">DELETE</td><td class="px-3 py-2">/api/sheets/{id}</td><td class="px-3 py-2">登录</td><td class="px-3 py-2 font-sans">删表(停跑着的容器+级联删记录)</td></tr>
-        <tr class="border-t"><td class="px-3 py-2">GET</td><td class="px-3 py-2">/api/challenges</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">列104题+本表状态</td></tr>
-        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/start</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">起靶机(注入随机flag,返回 url)</td></tr>
-        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/submit</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">提交 {flag} -> {correct}</td></tr>
-        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/stop</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">手动关闭(清flag+计时)</td></tr>
+        <tr class="border-t bg-blue-50"><td class="px-3 py-2">GET</td><td class="px-3 py-2">/api/challenges</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">题目列表+本看板状态</td></tr>
+        <tr class="border-t bg-blue-50"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{b}/start</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">起靶机(随机flag,返回url)</td></tr>
+        <tr class="border-t bg-blue-50"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{b}/submit</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">提交flag;正确自动关停清理</td></tr>
+        <tr class="border-t bg-blue-50"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{b}/stop</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">手动关闭(清flag+计时)</td></tr>
         <tr class="border-t"><td class="px-3 py-2">GET</td><td class="px-3 py-2">/api/leaderboard</td><td class="px-3 py-2">公开</td><td class="px-3 py-2 font-sans">排行榜</td></tr>
       </tbody>
     </table>
   </div>
+  <p class="text-xs text-slate-400 mt-2">蓝色行 = 用 api-key 做题的四个核心接口。</p>
+</div>
 
-  <div>
-    <h2 class="font-semibold mb-1">curl 示例</h2>
-    <pre class="bg-slate-900 text-slate-100 rounded p-3 text-xs overflow-x-auto"><code># 启动一题
-curl -X POST http://localhost:8000/api/challenges/XBEN-001-24/start \
-  -H "X-API-Key: $KEY"
-
-# 提交 flag
-curl -X POST http://localhost:8000/api/challenges/XBEN-001-24/submit \
-  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
-  -d '{"flag":"FLAG{...}"}'
-
-# 访问靶机环境(反代地址, attempt_id 来自启动返回)
-curl http://localhost:8000/c/&lt;attempt_id&gt;/</code></pre>
+<div class="bg-white rounded shadow p-5">
+  <h2 class="font-semibold text-lg mb-2">你的 api-key</h2>
+  {% if not sheets %}<p class="text-slate-400 text-sm">还没有解题表，先去 <a href="/sheets" class="text-blue-600">新建一张</a>。</p>{% endif %}
+  <div class="space-y-1 text-sm">
+    {% for s in sheets %}
+    <div class="flex items-center gap-2">
+      <span class="text-slate-500">{{ s.name }}:</span>
+      <code class="bg-slate-100 px-2 py-0.5 rounded select-all">{{ s.api_key }}</code>
+    </div>
+    {% endfor %}
   </div>
 </div>
 {% endblock %}
