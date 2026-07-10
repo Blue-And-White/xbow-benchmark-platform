@@ -16,7 +16,7 @@ from .db import get_db
 from .deps import current_user, get_config
 from .models import Attempt, Challenge, SolveSheet, User
 from .security import generate_api_key, hash_password, verify_password
-from .service import ServiceError, start as svc_start, stop as svc_stop, submit as svc_submit
+from .service import ServiceError, delete_sheet as svc_delete_sheet, start as svc_start, stop as svc_stop, submit as svc_submit
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter(tags=["pages"])
@@ -158,6 +158,14 @@ async def sheets_create(request: Request, name: str = Form(...), user: User = De
     return RedirectResponse("/sheets", status_code=303)
 
 
+@router.post("/sheets/{sheet_id}/delete", include_in_schema=False)
+async def sheets_delete(sheet_id: int, user: User = Depends(current_user),
+                        db: AsyncSession = Depends(get_db)) -> RedirectResponse:
+    sheet = await _sheet_for(db, user, sheet_id)
+    await svc_delete_sheet(db, sheet)
+    return RedirectResponse("/sheets", status_code=303)
+
+
 @router.get("/sheets/{sheet_id}", response_class=HTMLResponse, include_in_schema=False)
 async def board_page(request: Request, sheet_id: int, user: User = Depends(current_user),
                      db: AsyncSession = Depends(get_db)):
@@ -209,6 +217,14 @@ async def row_stop(request: Request, sheet_id: int, benchmark: str, user: User =
     c = await _chall(db, benchmark)
     await svc_stop(db, sheet, c)
     return await _render_row(request, db, sheet, c, cfg)
+
+
+# ----------------------------- api help ----------------------------- #
+@router.get("/api-help", response_class=HTMLResponse, include_in_schema=False)
+async def api_help(request: Request, user: User = Depends(current_user),
+                   db: AsyncSession = Depends(get_db)):
+    sheets = (await db.execute(select(SolveSheet).where(SolveSheet.user_id == user.id).order_by(SolveSheet.id))).scalars().all()
+    return templates.TemplateResponse(request, "api_help.html", {"user": user, "sheets": sheets})
 
 
 # ----------------------------- leaderboard / admin ----------------------------- #

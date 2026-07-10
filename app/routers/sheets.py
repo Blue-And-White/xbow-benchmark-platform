@@ -10,12 +10,20 @@ from ..db import get_db
 from ..deps import current_user
 from ..models import SolveSheet, User
 from ..security import generate_api_key
+from ..service import delete_sheet as svc_delete_sheet
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
 
 
 class SheetIn(BaseModel):
     name: str
+
+
+async def _owned(db: AsyncSession, user: User, sheet_id: int) -> SolveSheet:
+    s = (await db.execute(select(SolveSheet).where(SolveSheet.id == sheet_id, SolveSheet.user_id == user.id))).scalar_one_or_none()
+    if s is None:
+        raise HTTPException(404, "sheet not found")
+    return s
 
 
 @router.get("")
@@ -35,3 +43,9 @@ async def create_sheet(data: SheetIn, user: User = Depends(current_user), db: As
     await db.commit()
     await db.refresh(sheet)
     return {"id": sheet.id, "name": sheet.name, "api_key": sheet.api_key, "created_at": sheet.created_at.isoformat()}
+
+
+@router.delete("/{sheet_id}")
+async def delete_sheet(sheet_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict:
+    sheet = await _owned(db, user, sheet_id)
+    return await svc_delete_sheet(db, sheet)

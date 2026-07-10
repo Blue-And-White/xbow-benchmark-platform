@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}API 接入 — xbow CTF{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold">API 接入文档</h1>
+  <a href="/docs" target="_blank" class="text-sm bg-slate-900 text-white px-3 py-1.5 rounded hover:bg-slate-700">Swagger /docs ↗</a>
+</div>
+
+<div class="bg-white rounded shadow p-5 space-y-4 text-sm">
+  <div>
+    <h2 class="font-semibold mb-1">模型</h2>
+    <p class="text-slate-600">用户注册（需注册码）→ 登录 → 创建若干<b>解题情况表</b>，每张表生成一个独立的 <b>api-key</b>。这张表下所有"启动/提交/停止"都用该 api-key 鉴权，绑定到这张表。</p>
+  </div>
+
+  <div>
+    <h2 class="font-semibold mb-1">你的 api-key</h2>
+    {% if not sheets %}<p class="text-slate-400">还没有解题表，先去 <a href="/sheets" class="text-blue-600">新建一张</a>。</p>{% endif %}
+    <div class="space-y-1">
+      {% for s in sheets %}
+      <div class="flex items-center gap-2">
+        <span class="text-slate-500">{{ s.name }}:</span>
+        <code class="bg-slate-100 px-2 py-0.5 rounded select-all">{{ s.api_key }}</code>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-slate-400 mt-1">下方示例中 <code>$KEY</code> 替换为你的 api-key。</p>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead class="bg-slate-100 text-slate-600"><tr><th class="px-3 py-2 text-left">方法</th><th class="px-3 py-2 text-left">路径</th><th class="px-3 py-2 text-left">鉴权</th><th class="px-3 py-2 text-left">说明</th></tr></thead>
+      <tbody class="font-mono">
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/register</td><td class="px-3 py-2">注册码</td><td class="px-3 py-2 font-sans">注册账号 {registration_code, username, password}</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/auth/login</td><td class="px-3 py-2">用户名密码</td><td class="px-3 py-2 font-sans">登录(返回会话cookie)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">GET/POST</td><td class="px-3 py-2">/api/sheets</td><td class="px-3 py-2">登录</td><td class="px-3 py-2 font-sans">列/建解题表(返回 api_key)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">DELETE</td><td class="px-3 py-2">/api/sheets/{id}</td><td class="px-3 py-2">登录</td><td class="px-3 py-2 font-sans">删表(停跑着的容器+级联删记录)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">GET</td><td class="px-3 py-2">/api/challenges</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">列104题+本表状态</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/start</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">起靶机(注入随机flag,返回 url)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/submit</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">提交 {flag} -> {correct}</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">POST</td><td class="px-3 py-2">/api/challenges/{benchmark}/stop</td><td class="px-3 py-2">X-API-Key</td><td class="px-3 py-2 font-sans">手动关闭(清flag+计时)</td></tr>
+        <tr class="border-t"><td class="px-3 py-2">GET</td><td class="px-3 py-2">/api/leaderboard</td><td class="px-3 py-2">公开</td><td class="px-3 py-2 font-sans">排行榜</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div>
+    <h2 class="font-semibold mb-1">curl 示例</h2>
+    <pre class="bg-slate-900 text-slate-100 rounded p-3 text-xs overflow-x-auto"><code># 启动一题
+curl -X POST http://localhost:8000/api/challenges/XBEN-001-24/start \
+  -H "X-API-Key: $KEY"
+
+# 提交 flag
+curl -X POST http://localhost:8000/api/challenges/XBEN-001-24/submit \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"flag":"FLAG{...}"}'
+
+# 访问靶机环境(反代地址, attempt_id 来自启动返回)
+curl http://localhost:8000/c/&lt;attempt_id&gt;/</code></pre>
+  </div>
+</div>
+{% endblock %}

@@ -123,6 +123,30 @@ async def submit(db: AsyncSession, sheet: SolveSheet, c: Challenge, flag: str) -
     return {"correct": True, "benchmark": c.benchmark, "solve_duration_ms": att.solve_duration_ms}
 
 
+async def delete_sheet(db: AsyncSession, sheet: SolveSheet) -> dict:
+    """Delete a sheet: stop any running challenge containers, then cascade-delete attempts."""
+    atts = (await db.execute(
+        select(Attempt).where(Attempt.sheet_id == sheet.id)
+    )).scalars().all()
+    # need benchmark names to build the work_dir path
+    chall_ids = {a.challenge_id for a in atts}
+    chall_map: dict[int, Challenge] = {}
+    if chall_ids:
+        for c in (await db.execute(select(Challenge).where(Challenge.id.in_(chall_ids)))).scalars().all():
+            chall_map[c.id] = c
+    for a in atts:
+        if a.status == AttemptStatus.in_progress.value and a.compose_project:
+            c = chall_map.get(a.challenge_id)
+            wd = settings.runs_dir / f"{c.benchmark}_{a.id}" if c else None
+            try:
+                await docker_ops.stop_challenge(a.compose_project, wd or settings.runs_dir / f"_{a.id}")
+            except Exception:
+                pass
+    await db.delete(sheet)   # attempts cascade via FK ondelete=CASCADE
+    await db.commit()
+    return {"deleted": True, "id": sheet.id}
+
+
 async def stop(db: AsyncSession, sheet: SolveSheet, c: Challenge) -> dict:
     att = (
         await db.execute(select(Attempt).where(Attempt.sheet_id == sheet.id, Attempt.challenge_id == c.id))
