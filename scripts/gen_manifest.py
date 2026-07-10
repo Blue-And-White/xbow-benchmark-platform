@@ -156,7 +156,13 @@ def classify(bench_dir: Path) -> dict:
     if entry["service"] == "(detected)":
         entry["note"] = (entry["note"] or "") + " service name unresolved."
     if ftype == "embedded" and fpath and fpath.endswith(".sql"):
-        entry["note"] = (entry["note"] or "") + " flag baked into DB init .sql; runtime swap unreliable -> unsupported."
+        # flag is baked into a mysql init .sql at build time and loaded on the
+        # DB's first start; runtime sed won't take effect. Use a FIXED flag
+        # (the baked deterministic one) — still recorded + compared on submit.
+        entry["flag_type"] = "fixed"
+        entry["flag_path"] = fpath
+        entry["note"] = (entry["note"] or "") + " DB-init .sql flag -> fixed mode."
+        entry["supported"] = True
         return entry
     entry["supported"] = True
     return entry

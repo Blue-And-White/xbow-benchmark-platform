@@ -58,7 +58,12 @@ async def start(db: AsyncSession, sheet: SolveSheet, c: Challenge, cfg: Platform
     if await _count_in_progress(sheet.user_id, db) >= cfg.max_concurrent_per_user:
         raise ServiceError(409, f"concurrency limit reached ({cfg.max_concurrent_per_user} running)")
 
-    dynamic_flag = f"FLAG{{{uuid.uuid4().hex}}}"
+    # fixed mode (e.g. flag baked into a DB init .sql): use the baked flag as-is.
+    # otherwise generate a fresh random flag (file/env/embedded are injected at start).
+    if c.flag_type == "fixed":
+        dynamic_flag = c.original_flag or ""
+    else:
+        dynamic_flag = f"FLAG{{{uuid.uuid4().hex}}}"
     if att is None:
         att = Attempt(sheet_id=sheet.id, challenge_id=c.id)
         db.add(att)
