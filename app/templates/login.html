@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}登录 — xbow CTF{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-16">
+  <h1 class="text-2xl font-bold mb-4">登录</h1>
+  {% if error %}<div class="bg-rose-50 text-rose-700 px-3 py-2 rounded mb-3 text-sm">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="space-y-3 bg-white p-5 rounded shadow">
+    <input name="username" placeholder="用户名" required class="w-full border rounded px-3 py-2">
+    <input name="password" type="password" placeholder="密码" required class="w-full border rounded px-3 py-2">
+    <button class="w-full bg-slate-900 text-white py-2 rounded hover:bg-slate-700">登录</button>
+    <p class="text-sm text-slate-500 text-center">没有账号？<a href="/register" class="text-blue-600">注册</a>（需注册码）</p>
+  </form>
+</div>
+{% endblock %}

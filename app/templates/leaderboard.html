@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}排行榜 — xbow CTF{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">排行榜</h1>
+<div class="bg-white rounded shadow overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600">
+      <tr><th class="px-4 py-2 text-left">#</th><th class="px-4 py-2 text-left">用户</th><th class="px-4 py-2 text-right">已解</th><th class="px-4 py-2 text-right">总用时</th></tr>
+    </thead>
+    <tbody>
+    {% if not board %}<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">还没有人解题</td></tr>{% endif %}
+    {% for r in board %}
+      <tr class="border-t">
+        <td class="px-4 py-2">{{ r.rank }}</td>
+        <td class="px-4 py-2 font-medium">{{ r.username }}</td>
+        <td class="px-4 py-2 text-right text-emerald-600 font-semibold">{{ r.solved }}</td>
+        <td class="px-4 py-2 text-right text-slate-500">{{ (r.total_ms / 1000) | round(1) }}s</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

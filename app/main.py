@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import manifest as manifest_mod
+from . import pages
 from .config import settings
 from .db import SessionLocal, init_db
 from .models import Challenge, PlatformConfig, User
@@ -19,8 +20,10 @@ log = logging.getLogger("xben")
 app = FastAPI(title="xbow CTF platform", version="0.1.0")
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, same_site="lax")
 
-for r in (auth, sheets, challenges, leaderboard, admin, proxy):
-    app.include_router(r.router)
+for r in (auth, sheets, challenges, leaderboard, admin):
+    app.include_router(r.router, prefix="/api")   # JSON / api-key API
+app.include_router(proxy.router)                 # /c/{id}/ public challenge proxy
+app.include_router(pages.router)                 # HTML UI at /
 
 
 @app.get("/health")

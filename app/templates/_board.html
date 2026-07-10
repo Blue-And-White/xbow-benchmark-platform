@@ -1,0 +1,7 @@
+{# partial: full challenge grid (HTMX-polled) #}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+{% for c in challenges %}
+  {% set att = atts.get(c.id) %}
+  {% include "_row.html" %}
+{% endfor %}
+</div>

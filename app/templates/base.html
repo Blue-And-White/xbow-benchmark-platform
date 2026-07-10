@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}xbow CTF{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<style>body{font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+<nav class="bg-slate-900 text-slate-100 shadow">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
+    <a href="/" class="font-bold text-lg">xbow CTF 平台</a>
+    <div class="flex-1"></div>
+    {% if user %}
+      <a href="/sheets" class="hover:underline">我的解题表</a>
+      <a href="/leaderboard" class="hover:underline">排行榜</a>
+      {% if user.role == 'admin' %}<a href="/admin" class="hover:underline">管理</a>{% endif %}
+      <span class="text-slate-400">|</span>
+      <span class="text-slate-300">{{ user.username }}</span>
+      <form method="post" action="/logout" class="inline"><button class="hover:underline text-rose-300">登出</button></form>
+    {% endif %}
+  </div>
+</nav>
+<main class="max-w-6xl mx-auto px-4 py-6">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{# partial: one challenge row. vars: c, att, sheet, cfg, elapsed() global #}
+<div class="row bg-white rounded shadow p-3 flex items-center gap-3" id="row-{{ c.benchmark }}">
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2">
+      <span class="font-mono text-xs text-slate-400">{{ c.benchmark }}</span>
+      <span class="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">L{{ c.level }}</span>
+      {% if not c.supported %}<span class="text-xs text-rose-500">不支持</span>{% endif %}
+    </div>
+    <div class="text-sm truncate">{{ c.title }}</div>
+    <div class="text-xs text-slate-400 truncate">{{ c.tags }}</div>
+  </div>
+
+  <div class="w-48 text-right shrink-0">
+    {% if not c.supported %}
+      <span class="text-xs text-slate-400">不可用</span>
+    {% elif att and att.status == 'solved' %}
+      <span class="text-emerald-600 font-semibold">✓ 已解</span>
+      <div class="text-xs text-slate-400">{{ (att.solve_duration_ms / 1000) | round(1) }}s</div>
+    {% elif att and att.status == 'in_progress' %}
+      <div class="text-xs text-amber-600 font-semibold mb-1">作答中 {{ elapsed(att) }}s</div>
+      <div class="flex flex-col gap-1 items-end">
+        {% set proxied = (cfg.public_base_url or '') | trim('/') ~ '/c/' ~ att.id ~ '/' %}
+        <a href="{{ proxied }}" target="_blank" class="text-xs text-blue-600 hover:underline">进入靶机环境 ↗</a>
+        {% if cfg.allow_direct_port and att.host_port %}
+          <span class="text-[10px] text-slate-400">直连: 127.0.0.1:{{ att.host_port }}</span>
+        {% endif %}
+      </div>
+    {% else %}
+      <span class="text-xs text-slate-400">未开始</span>
+    {% endif %}
+  </div>
+
+  <div class="w-56 shrink-0 flex justify-end gap-1 items-center">
+    {% if not c.supported %}
+      <button disabled class="text-xs bg-slate-200 text-slate-400 px-3 py-1.5 rounded">启动</button>
+    {% elif att and att.status == 'solved' %}
+      {# solved: allow re-practice? for MVP, locked #}
+      <span class="text-xs text-emerald-600">完成</span>
+    {% elif att and att.status == 'in_progress' %}
+      <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/submit"
+            hx-target="closest .row" hx-swap="outerHTML" class="flex gap-1" autocomplete="off">
+        <input name="flag" placeholder="FLAG{...}" class="text-xs border rounded px-2 py-1 w-28 font-mono" required>
+        <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-500">提交</button>
+      </form>
+      <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/stop"
+            hx-target="closest .row" hx-swap="outerHTML">
+        <button class="text-xs bg-rose-500 text-white px-2 py-1 rounded hover:bg-rose-400" hx-confirm="确认停止并清除本次?">停止</button>
+      </form>
+    {% else %}
+      <button hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/start"
+              hx-target="closest .row" hx-swap="outerHTML"
+              hx-disabled-elt="this"
+              class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-500">启动</button>
+    {% endif %}
+  </div>
+</div>

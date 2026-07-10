@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}管理 — xbow CTF{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">平台管理</h1>
+
+<div class="bg-white p-5 rounded shadow mb-6 max-w-xl">
+  <h2 class="font-semibold mb-3">平台设置</h2>
+  <form method="post" action="/admin" class="space-y-3">
+    <label class="block text-sm">注册码
+      <input name="registration_code" value="{{ cfg.registration_code }}" class="w-full border rounded px-3 py-2 mt-1">
+    </label>
+    <label class="block text-sm">每用户最大并发题数
+      <input type="number" name="max_concurrent" value="{{ cfg.max_concurrent_per_user }}" class="w-full border rounded px-3 py-2 mt-1">
+    </label>
+    <label class="block text-sm">对外基础URL（用于生成靶机反代地址）
+      <input name="public_base_url" value="{{ cfg.public_base_url }}" class="w-full border rounded px-3 py-2 mt-1">
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="allow_direct_port" {{ 'checked' if cfg.allow_direct_port else '' }}>
+      允许返回直连端口（127.0.0.1:port）
+    </label>
+    <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">保存</button>
+  </form>
+</div>
+
+<div class="bg-white rounded shadow overflow-hidden max-w-xl">
+  <h2 class="font-semibold p-4">用户 ({{ users|length }})</h2>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600"><tr><th class="px-4 py-2 text-left">ID</th><th class="px-4 py-2 text-left">用户名</th><th class="px-4 py-2 text-left">角色</th></tr></thead>
+    <tbody>
+    {% for u in users %}<tr class="border-t"><td class="px-4 py-2">{{ u.id }}</td><td class="px-4 py-2">{{ u.username }}</td><td class="px-4 py-2">{{ u.role }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

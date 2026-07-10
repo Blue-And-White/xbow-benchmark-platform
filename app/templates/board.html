@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ sheet.name }} — xbow CTF{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <h1 class="text-2xl font-bold">{{ sheet.name }}</h1>
+    <div class="text-sm text-slate-500">api-key: <code class="bg-slate-100 px-2 py-0.5 rounded select-all">{{ sheet.api_key }}</code></div>
+  </div>
+  <div class="text-right">
+    <div class="text-3xl font-bold text-blue-600">{{ solved }}<span class="text-slate-400 text-lg">/{{ total }}</span></div>
+    <div class="text-xs text-slate-500">已解 / 作答中 <b>{{ running }}</b></div>
+  </div>
+</div>
+<div id="board" hx-get="/sheets/{{ sheet.id }}/board" hx-trigger="every 4s" hx-swap="innerHTML">
+  {% include "_board.html" %}
+</div>
+{% endblock %}

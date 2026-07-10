@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}我的解题表 — xbow CTF{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold">我的解题情况表</h1>
+  <form method="post" action="/sheets" class="flex gap-2">
+    <input name="name" placeholder="新表名（如：第1轮测试）" class="border rounded px-3 py-2">
+    <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">新建</button>
+  </form>
+</div>
+<p class="text-sm text-slate-500 mb-4">每个解题表对应一个独立的 104 题进度，各表有独立的 api-key（供程序/agent 调用 API）。</p>
+
+{% if not sheets %}
+  <div class="bg-white p-8 rounded shadow text-center text-slate-400">还没有解题表，新建一个开始吧。</div>
+{% endif %}
+<div class="grid gap-3">
+  {% for s in sheets %}
+  <div class="bg-white p-4 rounded shadow flex items-center gap-4">
+    <div class="flex-1">
+      <div class="font-semibold">{{ s.name }}</div>
+      <div class="text-xs text-slate-400">id={{ s.id }} · {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      <div class="mt-1 flex items-center gap-2 text-xs">
+        <code class="bg-slate-100 px-2 py-1 rounded select-all">{{ s.api_key }}</code>
+        <button onclick="navigator.clipboard.writeText('{{ s.api_key }}');this.textContent='已复制'" class="text-blue-600 hover:underline">复制</button>
+      </div>
+    </div>
+    <a href="/sheets/{{ s.id }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500">进入看板</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
