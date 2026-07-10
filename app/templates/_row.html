@@ -1,5 +1,11 @@
 {# partial: one challenge table row. vars: c, att, sheet, cfg, elapsed() global #}
-<tr class="border-t hover:bg-slate-50" id="row-{{ c.benchmark }}">
+{% if not c.supported %}{% set st = 'unsupported' %}
+{% elif att and att.status == 'solved' %}{% set st = 'solved' %}
+{% elif att and att.status == 'in_progress' %}{% set st = 'in_progress' %}
+{% else %}{% set st = 'not_started' %}{% endif %}
+<tr class="border-t hover:bg-slate-50" id="row-{{ c.benchmark }}"
+    data-level="{{ c.level }}" data-status="{{ st }}"
+    data-search="{{ (c.benchmark ~ ' ' ~ c.title ~ ' ' ~ c.tags)|lower }}">
   <td class="px-3 py-2 font-mono text-xs text-slate-400 align-top">{{ c.benchmark }}</td>
   <td class="px-3 py-2 align-top">
     <div class="font-medium text-slate-800 truncate max-w-md">{{ c.title }}</div>

@@ -9,7 +9,50 @@
   </div>
 </div>
 
+{# filter bar — outside #board so it survives the 4s poll #}
+<div class="bg-white rounded shadow p-3 mb-3 flex flex-wrap items-center gap-3 text-sm">
+  <input id="f-q" type="search" placeholder="搜索 编号/题目/标签…"
+         class="border rounded px-3 py-1.5 flex-1 min-w-[200px]" oninput="applyFilter()">
+  <div class="flex items-center gap-1" onchange="applyFilter()">
+    <span class="text-slate-400 text-xs mr-1">难度</span>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-slate-800 has-[:checked]:text-white"><input type="radio" name="f-level" value="all" class="hidden" checked>全部</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-slate-800 has-[:checked]:text-white"><input type="radio" name="f-level" value="1" class="hidden">L1</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-slate-800 has-[:checked]:text-white"><input type="radio" name="f-level" value="2" class="hidden">L2</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-slate-800 has-[:checked]:text-white"><input type="radio" name="f-level" value="3" class="hidden">L3</label>
+  </div>
+  <div class="flex items-center gap-1" onchange="applyFilter()">
+    <span class="text-slate-400 text-xs mr-1">状态</span>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-blue-600 has-[:checked]:text-white"><input type="radio" name="f-status" value="all" class="hidden" checked>全部</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-blue-600 has-[:checked]:text-white"><input type="radio" name="f-status" value="not_started" class="hidden">未解</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-blue-600 has-[:checked]:text-white"><input type="radio" name="f-status" value="in_progress" class="hidden">作答中</label>
+    <label class="px-2 py-1 rounded border cursor-pointer has-[:checked]:bg-blue-600 has-[:checked]:text-white"><input type="radio" name="f-status" value="solved" class="hidden">已解</label>
+  </div>
+  <span id="f-count" class="text-xs text-slate-400"></span>
+</div>
+
 <div id="board" hx-get="/sheets/{{ sheet.id }}/board" hx-trigger="every 4s" hx-swap="innerHTML">
   {% include "_board.html" %}
 </div>
+
+<script>
+function applyFilter(){
+  const q = (document.getElementById('f-q')?.value || '').trim().toLowerCase();
+  const lvl = (document.querySelector('input[name=f-level]:checked')?.value) || 'all';
+  const st = (document.querySelector('input[name=f-status]:checked')?.value) || 'all';
+  let shown = 0, total = 0;
+  document.querySelectorAll('#board tr[data-level]').forEach(tr=>{
+    total++;
+    let ok = true;
+    if(lvl !== 'all' && tr.dataset.level !== lvl) ok = false;
+    if(st !== 'all' && tr.dataset.status !== st) ok = false;
+    if(q && !(tr.dataset.search || '').includes(q)) ok = false;
+    tr.style.display = ok ? '' : 'none';
+    if(ok) shown++;
+  });
+  const c = document.getElementById('f-count');
+  if(c) c.textContent = shown + '/' + total + ' 条';
+}
+document.body.addEventListener('htmx:afterSwap', e => { if(e.target.id === 'board') applyFilter(); });
+window.addEventListener('DOMContentLoaded', applyFilter);
+</script>
 {% endblock %}
