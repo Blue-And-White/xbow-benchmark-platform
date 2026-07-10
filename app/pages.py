@@ -237,18 +237,25 @@ async def api_help(request: Request, user: User = Depends(current_user),
 @router.get("/leaderboard", response_class=HTMLResponse, include_in_schema=False)
 async def leaderboard_page(request: Request, db: AsyncSession = Depends(get_db)):
     from .models import AttemptStatus
-    from sqlalchemy import func
+    from sqlalchemy import case, func
+    solved = func.sum(case((Attempt.status == AttemptStatus.solved.value, 1), else_=0))
+    total_ms = func.coalesce(
+        func.sum(case((Attempt.status == AttemptStatus.solved.value, Attempt.solve_duration_ms), else_=0)), 0)
     stmt = (
-        select(User.username, func.count(Attempt.id), func.coalesce(func.sum(Attempt.solve_duration_ms), 0))
-        .join(SolveSheet, SolveSheet.user_id == User.id)
-        .join(Attempt, Attempt.sheet_id == SolveSheet.id)
-        .where(Attempt.status == AttemptStatus.solved.value)
-        .group_by(User.id, User.username)
-        .order_by(func.count(Attempt.id).desc(), func.sum(Attempt.solve_duration_ms).asc())
+        select(User.username, SolveSheet.id, SolveSheet.name, solved, total_ms)
+        .select_from(SolveSheet)
+        .join(User, SolveSheet.user_id == User.id)
+        .outerjoin(Attempt, Attempt.sheet_id == SolveSheet.id)
+        .group_by(SolveSheet.id, User.username, SolveSheet.name)
+        .order_by(solved.desc(), total_ms.asc(), SolveSheet.id)
     )
     rows = (await db.execute(stmt)).all()
-    board = [{"rank": i + 1, "username": r[0], "solved": int(r[1]), "total_ms": int(r[2])} for i, r in enumerate(rows)]
-    return templates.TemplateResponse(request, "leaderboard.html", {"board": board})
+    board = [{"rank": i + 1, "username": r[0], "sheet_id": r[1], "sheet_name": r[2],
+              "solved": int(r[3] or 0), "total_ms": int(r[4] or 0)} for i, r in enumerate(rows)]
+    user = None
+    if request.session.get("user_id"):
+        user = (await db.execute(select(User).where(User.id == request.session["user_id"]))).scalar_one_or_none()
+    return templates.TemplateResponse(request, "leaderboard.html", {"board": board, "user": user})
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)

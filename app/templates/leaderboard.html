@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 {% block title %}排行榜 — xbow CTF{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold mb-4">排行榜</h1>
-<div class="bg-white rounded shadow overflow-hidden">
+<h1 class="text-2xl font-bold mb-1">排行榜</h1>
+<p class="text-sm text-slate-500 mb-4">按 用户 / 看板 排名。解题数量为主（多者靠前），数量相同则总用时少者靠前。</p>
+<div class="bg-white rounded shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-slate-600">
-      <tr><th class="px-4 py-2 text-left">#</th><th class="px-4 py-2 text-left">用户</th><th class="px-4 py-2 text-right">已解</th><th class="px-4 py-2 text-right">总用时</th></tr>
+      <tr>
+        <th class="px-4 py-2 text-left w-12">#</th>
+        <th class="px-4 py-2 text-left">用户</th>
+        <th class="px-4 py-2 text-left">看板（任务名）</th>
+        <th class="px-4 py-2 text-right w-24">已解</th>
+        <th class="px-4 py-2 text-right w-32">总用时</th>
+      </tr>
     </thead>
     <tbody>
-    {% if not board %}<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">还没有人解题</td></tr>{% endif %}
+    {% if not board %}<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">还没有解题记录</td></tr>{% endif %}
     {% for r in board %}
-      <tr class="border-t">
-        <td class="px-4 py-2">{{ r.rank }}</td>
-        <td class="px-4 py-2 font-medium">{{ r.username }}</td>
-        <td class="px-4 py-2 text-right text-emerald-600 font-semibold">{{ r.solved }}</td>
+      <tr class="border-t {{ 'bg-blue-50' if user and r.username == user.username }}">
+        <td class="px-4 py-2 font-semibold {% if r.rank <= 3 %}text-amber-500{% else %}text-slate-400{% endif %}">{{ r.rank }}</td>
+        <td class="px-4 py-2">{{ r.username }}</td>
+        <td class="px-4 py-2">{{ r.sheet_name }}</td>
+        <td class="px-4 py-2 text-right text-emerald-600 font-semibold">{{ r.solved }}<span class="text-slate-300 text-xs">/104</span></td>
         <td class="px-4 py-2 text-right text-slate-500">{{ (r.total_ms / 1000) | round(1) }}s</td>
       </tr>
     {% endfor %}
