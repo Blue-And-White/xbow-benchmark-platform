@@ -25,11 +25,12 @@ CA_PATH = "/etc/ssl/certs/ca-certificates.crt"
 # inserted right after the first FROM line (applies to the build stage)
 PATCH = (
     "COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n"
-    "RUN sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; "
-    "s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; "
-    "s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
+    "RUN echo 'Acquire::Retries \"3\";' > /etc/apt/apt.conf.d/80retries; \\\n"
+    "    sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
+    "    sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/*.sources 2>/dev/null; \\\n"
     "    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories 2>/dev/null; true\n"
-    "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1\n"
+    "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1 \\\n"
+    "    npm_config_registry=https://registry.npmmirror.com\n"
 )
 
 
@@ -52,7 +53,7 @@ def insert_patch(text: str) -> str:
     return text
 
 
-def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 1200) -> str:
+def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 1800) -> str:
     df = find_flag_dockerfile(bench_dir)
     if df is None:
         return "skip(no ARG FLAG Dockerfile)"
@@ -88,6 +89,7 @@ def main() -> int:
     ap.add_argument("--repo", default="/root/validation-benchmarks")
     ap.add_argument("--n", type=int, default=60)
     ap.add_argument("--start", type=int, default=0, help="skip first N benchmarks (0-indexed)")
+    ap.add_argument("--only", default="", help="comma-separated benchmark names to build (overrides start/n)")
     ap.add_argument("--log", default="/root/prebuild.log")
     ap.add_argument("--ca", default=CA_PATH)
     args = ap.parse_args()
@@ -108,7 +110,11 @@ def main() -> int:
         print("ERROR: docker daemon not reachable; start dockerd first", file=sys.stderr)
         return 1
 
-    benches = sorted(p for p in bdir.iterdir() if p.is_dir() and p.name.startswith("XBEN-"))[args.start: args.start + args.n]
+    if args.only:
+        want = {x.strip() for x in args.only.split(",") if x.strip()}
+        benches = [p for p in sorted(bdir.iterdir()) if p.is_dir() and p.name in want]
+    else:
+        benches = sorted(p for p in bdir.iterdir() if p.is_dir() and p.name.startswith("XBEN-"))[args.start: args.start + args.n]
     ok = fail = skip = 0
     with open(args.log, "a") as log:
         log.write(f"\n=== prebuild start {time.strftime('%F %T')} n={len(benches)} repo={args.repo} ===\n")
