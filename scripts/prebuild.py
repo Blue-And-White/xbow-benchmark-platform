@@ -28,7 +28,7 @@ CA_PATH = "/etc/ssl/certs/ca-certificates.crt"
 # - current debian -> tencent mirror; ubuntu -> tencent; alpine -> aliyun.
 PATCH = (
     "COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n"
-    "RUN echo 'Acquire::Retries \"3\";' > /etc/apt/apt.conf.d/80retries; \\\n"
+    "RUN echo 'Acquire::Retries \"20\"; Acquire::http::Proxy \"http://172.17.0.1:3142\"; Acquire::https::Proxy \"http://172.17.0.1:3142\";' > /etc/apt/apt.conf.d/80proxy; \\\n"
     "    if grep -qE ' (buster|stretch|jessie|wheezy)( |$|-|/)' /etc/apt/sources.list 2>/dev/null; then \\\n"
     "      sed -i 's|deb.debian.org|archive.debian.org|g; s|security.debian.org|archive.debian.org|g' /etc/apt/sources.list; \\\n"
     "      sed -i '/-updates/d; /snapshot.debian.org/d' /etc/apt/sources.list; \\\n"
@@ -62,7 +62,7 @@ def insert_patch(text: str) -> str:
     return text
 
 
-def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 1800) -> str:
+def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
     df = find_flag_dockerfile(bench_dir)
     if df is None:
         return "skip(no ARG FLAG Dockerfile)"
