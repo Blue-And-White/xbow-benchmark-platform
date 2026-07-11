@@ -62,7 +62,9 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 1200) -> str:
     try:
         ca.write_bytes(ca_bytes)
         df.write_text(insert_patch(orig))
-        p = subprocess.run(["make", "build"], cwd=bench_dir,
+        # 'make clean' removes the stale .xben_build_done guard so make actually
+        # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
+        p = subprocess.run(["bash", "-c", "make clean && make build"], cwd=bench_dir,
                            capture_output=True, text=True, timeout=timeout)
         if p.returncode == 0:
             return "ok"
