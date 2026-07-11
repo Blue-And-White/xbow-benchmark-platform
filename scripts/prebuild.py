@@ -87,6 +87,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default="/root/validation-benchmarks")
     ap.add_argument("--n", type=int, default=60)
+    ap.add_argument("--start", type=int, default=0, help="skip first N benchmarks (0-indexed)")
     ap.add_argument("--log", default="/root/prebuild.log")
     ap.add_argument("--ca", default=CA_PATH)
     args = ap.parse_args()
@@ -107,7 +108,7 @@ def main() -> int:
         print("ERROR: docker daemon not reachable; start dockerd first", file=sys.stderr)
         return 1
 
-    benches = sorted(p for p in bdir.iterdir() if p.is_dir() and p.name.startswith("XBEN-"))[: args.n]
+    benches = sorted(p for p in bdir.iterdir() if p.is_dir() and p.name.startswith("XBEN-"))[args.start: args.start + args.n]
     ok = fail = skip = 0
     with open(args.log, "a") as log:
         log.write(f"\n=== prebuild start {time.strftime('%F %T')} n={len(benches)} repo={args.repo} ===\n")
