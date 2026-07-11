@@ -22,12 +22,21 @@ from pathlib import Path
 
 CA_PATH = "/etc/ssl/certs/ca-certificates.crt"
 
-# inserted right after the first FROM line (applies to the build stage)
+# inserted right after the first FROM line. Codename-aware:
+# - EOL debian (buster/stretch/jessie/wheezy) -> archive.debian.org (deb.debian.org
+#   dropped them; Tencent mirror doesn't keep them either) and drop -updates.
+# - current debian -> tencent mirror; ubuntu -> tencent; alpine -> aliyun.
 PATCH = (
     "COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n"
     "RUN echo 'Acquire::Retries \"3\";' > /etc/apt/apt.conf.d/80retries; \\\n"
-    "    sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
-    "    sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|archive.ubuntu.com|mirrors.cloud.tencent.com|g; s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/*.sources 2>/dev/null; \\\n"
+    "    if grep -qE ' (buster|stretch|jessie|wheezy)( |$|-|/)' /etc/apt/sources.list 2>/dev/null; then \\\n"
+    "      sed -i 's|deb.debian.org|archive.debian.org|g; s|security.debian.org|archive.debian.org|g' /etc/apt/sources.list; \\\n"
+    "      sed -i '/-updates/d; /snapshot.debian.org/d' /etc/apt/sources.list; \\\n"
+    "    else \\\n"
+    "      sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
+    "      sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/*.sources 2>/dev/null; \\\n"
+    "      sed -i 's|archive.ubuntu.com|mirrors.cloud.tencent.com|g; s|security.ubuntu.com|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null; \\\n"
+    "    fi; \\\n"
     "    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories 2>/dev/null; true\n"
     "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1 \\\n"
     "    npm_config_registry=https://registry.npmmirror.com\n"
