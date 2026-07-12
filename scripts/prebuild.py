@@ -61,12 +61,12 @@ PHANTOMJS_URL = "https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1
 
 def _ensure_phantomjs(cache_path: Path) -> bool:
     """Download phantomjs binary once (bitbucket ~22KB/s from China, ~17min for 23MB)."""
-    if cache_path.exists() and cache_path.stat().st_size > 20_000_000:
+    if cache_path.exists() and cache_path.stat().st_size > 23_000_000:
         return True
-    p = subprocess.run(["curl", "-fsSL", "-C", "-", "--retry", "10", "--retry-delay", "5",
+    p = subprocess.run(["curl", "-fsSL", "-C", "-", "--retry", "20", "--retry-delay", "5",
                         "--max-time", "1800", "-o", str(cache_path), PHANTOMJS_URL],
                        capture_output=True, timeout=1860)
-    return p.returncode == 0 and cache_path.exists() and cache_path.stat().st_size > 20_000_000
+    return p.returncode == 0 and cache_path.exists() and cache_path.stat().st_size > 23_000_000
 
 
 def insert_patch(text: str, extra: str = "") -> str:
