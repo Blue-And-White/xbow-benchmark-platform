@@ -34,8 +34,11 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     body = await request.body()
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP}
     headers["host"] = f"127.0.0.1:{att.host_port}"
+    headers["x-forwarded-host"] = request.headers.get("host", "")
+    headers["x-forwarded-proto"] = "http"
+    headers["x-forwarded-for"] = request.client.host if request.client else ""
 
-    client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=False)
+    client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False)
     req = client.build_request(request.method, target, headers=headers, content=body)
     resp = await client.send(req, stream=True)
 

@@ -24,6 +24,19 @@
     {% endif %}
   </div>
 </nav>
+<script>
+function copyKey(btn, text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = '已复制'; });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); btn.textContent = '已复制'; } catch(e) {}
+    document.body.removeChild(ta);
+  }
+}
+</script>
 <main class="max-w-6xl mx-auto px-4 py-6">
   {% block content %}{% endblock %}
 </main>

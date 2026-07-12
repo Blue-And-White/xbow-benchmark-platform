@@ -23,7 +23,7 @@
       <div class="text-xs text-slate-400">id={{ s.id }} · {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
       <div class="mt-1 flex items-center gap-2 text-xs">
         <code class="bg-slate-100 px-2 py-1 rounded select-all">{{ s.api_key }}</code>
-        <button onclick="navigator.clipboard.writeText('{{ s.api_key }}');this.textContent='已复制'" class="text-blue-600 hover:underline">复制</button>
+        <button onclick="copyKey(this,'{{ s.api_key }}')" class="text-blue-600 hover:underline">复制</button>
       </div>
       <div class="mt-2 flex items-center gap-2">
         <span class="text-sm font-semibold text-emerald-600">{{ st.solved }}</span><span class="text-xs text-slate-400">/{{ st.total }} 已解</span>
