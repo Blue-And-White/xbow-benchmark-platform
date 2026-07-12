@@ -16,7 +16,7 @@
       <span class="flex-none w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">1</span>
       <div class="flex-1">
         <div><b>看题目列表 + 本看板解题情况</b></div>
-        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -H "X-API-Key: $KEY" http://localhost:8000/api/challenges
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -H "X-API-Key: $KEY" http://&lt;平台地址&gt;/api/challenges
 # 返回 104 题，每题含 status: not_started | in_progress | solved</code></pre>
       </div>
     </div>
@@ -26,16 +26,25 @@
       <div class="flex-1">
         <div><b>启动一题</b>（注入本次随机 flag，返回靶机地址）</div>
         <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" \
-  http://localhost:8000/api/challenges/XBEN-001-24/start
-# {attempt_id, url(反代), direct_url}  -> 靶机环境已就绪</code></pre>
+  http://&lt;平台地址&gt;/api/challenges/XBEN-001-24/start
+# 返回: {"attempt_id", "url"(反代), "direct_url"(内部)}  靶机已就绪</code></pre>
       </div>
+    </div>
+
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-3 text-sm rounded">
+      <b>📌 题目地址说明（重要）</b>
+      <ul class="list-disc list-inside mt-1 space-y-0.5 text-slate-700">
+        <li><code>url</code> = <b>反代地址</b>，格式 <code>http://&lt;平台地址&gt;/c/&lt;attempt_id&gt;/</code> —— <b>公网可直接访问</b>，这是你解题用的地址。平台内部把请求转发到靶机容器。</li>
+        <li><code>direct_url</code> = <code>http://127.0.0.1:&lt;端口&gt;/</code> —— <b>仅服务器内部可用</b>，公网访问不了。仅供服务器本机调试用。</li>
+        <li>所以：从公网/浏览器/agent 解题，一律用 <code>url</code>（反代）。<code>direct_url</code> 忽略即可。</li>
+      </ul>
     </div>
 
     <div class="flex gap-3">
       <span class="flex-none w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">3</span>
       <div class="flex-1">
-        <div><b>访问靶机解题</b>，拿到 flag（用返回的 <code>url</code> 或 <code>direct_url</code>）</div>
-        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl http://localhost:8000/c/&lt;attempt_id&gt;/   # 反代地址</code></pre>
+        <div><b>访问靶机解题</b>，拿到 flag（用返回的 <code>url</code> 反代地址）</div>
+        <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl http://&lt;平台地址&gt;/c/&lt;attempt_id&gt;/   # 公网反代, 直接访问</code></pre>
       </div>
     </div>
 
@@ -45,7 +54,7 @@
         <div><b>提交 flag</b> — 正确则平台<b>自动关闭并清理靶机容器</b>（容器+数据卷+网络，无需手动停）</div>
         <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
   -d '{"flag":"FLAG{...}"}' \
-  http://localhost:8000/api/challenges/XBEN-001-24/submit
+  http://&lt;平台地址&gt;/api/challenges/XBEN-001-24/submit
 # 正确: {"correct":true,"solve_duration_ms":...}  -> 容器已清理
 # 错误: {"correct":false}  -> 本次尝试保留，可继续解</code></pre>
       </div>
@@ -56,7 +65,7 @@
       <div class="flex-1">
         <div><b>放弃 / 手动关闭</b>（解不出时，清掉本次 flag+计时，题回到未开始）</div>
         <pre class="bg-slate-900 text-slate-100 rounded p-2 text-xs mt-1 overflow-x-auto"><code>curl -X POST -H "X-API-Key: $KEY" \
-  http://localhost:8000/api/challenges/XBEN-001-24/stop</code></pre>
+  http://&lt;平台地址&gt;/api/challenges/XBEN-001-24/stop</code></pre>
       </div>
     </div>
   </div>
