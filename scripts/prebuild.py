@@ -95,6 +95,7 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             pj_ctx = ctx / "phantomjs.tar.bz2"
             shutil.copy2(str(pj_cache), str(pj_ctx))  # copy (keep cache, no re-download)
             pj_block = (
+                "RUN apt-get update && apt-get install -y --no-install-recommends bzip2\n"
                 "COPY phantomjs.tar.bz2 /tmp/phantomjs.tar.bz2\n"
                 "RUN tar xjf /tmp/phantomjs.tar.bz2 -C /usr/local --strip-components=2 "
                 "phantomjs-2.1.1-linux-x86_64/bin/phantomjs && rm /tmp/phantomjs.tar.bz2 "
