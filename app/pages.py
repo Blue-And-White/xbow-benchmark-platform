@@ -5,6 +5,7 @@ Both call into app.service for the shared start/submit/stop logic.
 from __future__ import annotations
 
 import csv
+import shutil
 import io
 import json
 from datetime import datetime, timezone

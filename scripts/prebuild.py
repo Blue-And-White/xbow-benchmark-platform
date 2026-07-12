@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -63,8 +64,8 @@ def _ensure_phantomjs(cache_path: Path) -> bool:
     if cache_path.exists() and cache_path.stat().st_size > 20_000_000:
         return True
     p = subprocess.run(["curl", "-fsSL", "-C", "-", "--retry", "10", "--retry-delay", "5",
-                        "--max-time", "1200", "-o", str(cache_path), PHANTOMJS_URL],
-                       capture_output=True, timeout=1260)
+                        "--max-time", "1800", "-o", str(cache_path), PHANTOMJS_URL],
+                       capture_output=True, timeout=1860)
     return p.returncode == 0 and cache_path.exists() and cache_path.stat().st_size > 20_000_000
 
 
@@ -92,8 +93,7 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             if not _ensure_phantomjs(pj_cache):
                 return "FAIL(cant download phantomjs binary)"
             pj_ctx = ctx / "phantomjs.tar.bz2"
-            pj_cache.replace(pj_ctx)  # move into context; _ensure re-downloads if needed
-            _ensure_phantomjs(pj_cache)  # re-cache for next benchmark
+            shutil.copy2(str(pj_cache), str(pj_ctx))  # copy (keep cache, no re-download)
             pj_block = (
                 "COPY phantomjs.tar.bz2 /tmp/phantomjs.tar.bz2\n"
                 "RUN tar xjf /tmp/phantomjs.tar.bz2 -C /usr/local --strip-components=2 "
@@ -102,7 +102,7 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             )
             patched = insert_patch(orig, extra=pj_block)
             patched = patched.replace("apt-get install -y phantomjs",
-                                      "apt-get install -y --no-install-recommends libfontconfig1 libfreetype6 libssl1.1")
+                                      "apt-get install -y --no-install-recommends libfontconfig1 libfreetype6 libssl1.1 bzip2")
         else:
             patched = insert_patch(orig)
         df.write_text(patched)
