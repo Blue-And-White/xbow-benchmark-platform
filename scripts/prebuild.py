@@ -40,6 +40,7 @@ PATCH = (
     "    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories 2>/dev/null; true\n"
     "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1 \\\n"
     "    npm_config_registry=https://registry.npmmirror.com\n"
+    "RUN mkdir -p /root/.composer && printf '{\"repositories\":{\"packagist.org\":{\"type\":\"composer\",\"url\":\"https://mirrors.aliyun.com/composer/\"}}}\\n' > /root/.composer/config.json; true\n"
 )
 
 
@@ -71,7 +72,18 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
     orig = df.read_text()
     try:
         ca.write_bytes(ca_bytes)
-        df.write_text(insert_patch(orig))
+        patched = insert_patch(orig)
+        # phantomjs was removed from Debian repos; install the binary instead.
+        if "phantomjs" in patched:
+            pjbin = (
+                "libfontconfig1 libfreetype6 libssl1.1 ca-certificates curl "
+                "&& curl -fsSL https://gh-proxy.com/https://github.com/phantomjs/phantomjs/releases/download/2.1.1/phantomjs-2.1.1-linux-x86_64.tar.bz2 -o /tmp/pj.tar.bz2 "
+                "&& tar xjf /tmp/pj.tar.bz2 -C /usr/local --strip-components=2 phantomjs-2.1.1-linux-x86_64/bin/phantomjs "
+                "&& rm /tmp/pj.tar.bz2 && ln -sf /usr/local/phantomjs /usr/local/bin/phantomjs"
+            )
+            patched = patched.replace("apt-get install -y phantomjs",
+                                      f"apt-get install -y --no-install-recommends {pjbin}")
+        df.write_text(patched)
         # 'make clean' removes the stale .xben_build_done guard so make actually
         # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
         p = subprocess.run(["bash", "-c", "make clean && make build"], cwd=bench_dir,
