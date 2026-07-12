@@ -55,11 +55,24 @@ def find_flag_dockerfile(bench_dir: Path) -> Path | None:
     return None
 
 
-def insert_patch(text: str) -> str:
+PHANTOMJS_URL = "https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2"
+
+
+def _ensure_phantomjs(cache_path: Path) -> bool:
+    """Download phantomjs binary once (on the host, where bitbucket works)."""
+    if cache_path.exists() and cache_path.stat().st_size > 1_000_000:
+        return True
+    p = subprocess.run(["curl", "-fsSL", "-o", str(cache_path), PHANTOMJS_URL],
+                       capture_output=True, timeout=180)
+    return p.returncode == 0 and cache_path.exists() and cache_path.stat().st_size > 1_000_000
+
+
+def insert_patch(text: str, extra: str = "") -> str:
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if line.startswith("FROM "):
-            return "\n".join(lines[: i + 1] + [PATCH] + lines[i + 1:]) + "\n"
+            blocks = [PATCH] + ([extra] if extra else [])
+            return "\n".join(lines[: i + 1] + blocks + lines[i + 1:]) + "\n"
     return text
 
 
@@ -72,17 +85,25 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
     orig = df.read_text()
     try:
         ca.write_bytes(ca_bytes)
-        patched = insert_patch(orig)
-        # phantomjs was removed from Debian repos; install the binary instead.
-        if "phantomjs" in patched:
-            pjbin = (
-                "libfontconfig1 libfreetype6 libssl1.1 ca-certificates curl "
-                "&& curl -fsSL https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 -o /tmp/pj.tar.bz2 "
-                "&& tar xjf /tmp/pj.tar.bz2 -C /usr/local --strip-components=2 phantomjs-2.1.1-linux-x86_64/bin/phantomjs "
-                "&& rm /tmp/pj.tar.bz2 && ln -sf /usr/local/phantomjs /usr/local/bin/phantomjs"
+        is_phantomjs = "phantomjs" in orig.lower()
+        if is_phantomjs:
+            pj_cache = Path("/root/phantomjs.tar.bz2")
+            if not _ensure_phantomjs(pj_cache):
+                return "FAIL(cant download phantomjs binary)"
+            pj_ctx = ctx / "phantomjs.tar.bz2"
+            pj_cache.replace(pj_ctx)  # move into context; _ensure re-downloads if needed
+            _ensure_phantomjs(pj_cache)  # re-cache for next benchmark
+            pj_block = (
+                "COPY phantomjs.tar.bz2 /tmp/phantomjs.tar.bz2\n"
+                "RUN tar xjf /tmp/phantomjs.tar.bz2 -C /usr/local --strip-components=2 "
+                "phantomjs-2.1.1-linux-x86_64/bin/phantomjs && rm /tmp/phantomjs.tar.bz2 "
+                "&& ln -sf /usr/local/phantomjs /usr/local/bin/phantomjs\n"
             )
+            patched = insert_patch(orig, extra=pj_block)
             patched = patched.replace("apt-get install -y phantomjs",
-                                      f"apt-get install -y --no-install-recommends {pjbin}")
+                                      "apt-get install -y --no-install-recommends libfontconfig1 libfreetype6 libssl1.1")
+        else:
+            patched = insert_patch(orig)
         df.write_text(patched)
         # 'make clean' removes the stale .xben_build_done guard so make actually
         # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
@@ -101,6 +122,9 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             df.write_text(orig)
             if ca.exists():
                 ca.unlink()
+            pj_ctx = ctx / "phantomjs.tar.bz2"
+            if pj_ctx.exists():
+                pj_ctx.unlink()
         except Exception:
             pass
 
