@@ -109,6 +109,9 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
         # 'pip install --upgrade pip' can break pip in some python:3.x-slim images (exit 127).
         patched = patched.replace("RUN pip install --upgrade pip",
                                   "RUN echo 'skip pip upgrade (can break pip)'")
+        # old composer packages may not declare PHP 8 compat; ignore platform reqs.
+        patched = patched.replace("RUN composer install",
+                                  "RUN composer install --ignore-platform-reqs")
         df.write_text(patched)
         # 'make clean' removes the stale .xben_build_done guard so make actually
         # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
