@@ -41,7 +41,7 @@ PATCH = (
     "    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories 2>/dev/null; true\n"
     "ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple PIP_DISABLE_PIP_VERSION_CHECK=1 \\\n"
     "    npm_config_registry=https://registry.npmmirror.com COMPOSER_HOME=/tmp/composer\n"
-    "RUN mkdir -p /tmp/composer && printf '{\"repositories\":{\"packagist.org\":{\"type\":\"composer\",\"url\":\"https://mirrors.aliyun.com/composer/\"}}}\\n' > /tmp/composer/config.json && chmod 644 /tmp/composer/config.json; true\n"
+    "RUN mkdir -p /tmp/composer && chmod 777 /tmp/composer && printf '{\"policy\":{\"advisories\":{\"block\":false}},\"repositories\":{\"packagist.org\":{\"type\":\"composer\",\"url\":\"https://mirrors.aliyun.com/composer/\"}}}\\n' > /tmp/composer/config.json && chmod 644 /tmp/composer/config.json; true\n"
 )
 
 
