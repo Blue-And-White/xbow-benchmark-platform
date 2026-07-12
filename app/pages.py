@@ -4,10 +4,13 @@ Both call into app.service for the shared start/submit/stop logic.
 """
 from __future__ import annotations
 
+import csv
+import io
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -184,6 +187,54 @@ async def board_partial(request: Request, sheet_id: int, user: User = Depends(cu
                         db: AsyncSession = Depends(get_db)):
     sheet = await _sheet_for(db, user, sheet_id)
     return templates.TemplateResponse(request, "_board.html", await _board_ctx(db, sheet, user))
+
+
+# ----------------------------- export ----------------------------- #
+def _export_rows(challs, atts):
+    """Build per-challenge export rows (list of dicts)."""
+    rows = []
+    for c in challs:
+        a = atts.get(c.id)
+        st = _status_of(c, atts)
+        rows.append({
+            "benchmark": c.benchmark, "title": c.title, "level": c.level,
+            "tags": c.tags.split(",") if c.tags else [],
+            "supported": c.supported,
+            "status": st,
+            "started_at": a.started_at.isoformat() if a and a.started_at else None,
+            "solved_at": a.solved_at.isoformat() if a and a.solved_at else None,
+            "solve_duration_ms": a.solve_duration_ms if a else None,
+        })
+    return rows
+
+
+@router.get("/sheets/{sheet_id}/export", include_in_schema=False)
+async def export_sheet(sheet_id: int, format: str = "json", user: User = Depends(current_user),
+                        db: AsyncSession = Depends(get_db)):
+    sheet = await _sheet_for(db, user, sheet_id)
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    atts = await _atts_map(db, sheet.id)
+    rows = _export_rows(challs, atts)
+    stats = _stats(challs, atts)
+    fname = (sheet.name or "sheet").replace("/", "_")
+    if format == "csv":
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["benchmark", "title", "level", "tags", "status", "started_at", "solved_at", "solve_duration_ms"])
+        for r in rows:
+            w.writerow([r["benchmark"], r["title"], r["level"], ",".join(r["tags"]),
+                        r["status"], r["started_at"] or "", r["solved_at"] or "", r["solve_duration_ms"] or ""])
+        return Response(content=buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
+    data = {
+        "sheet": {"id": sheet.id, "name": sheet.name, "api_key": sheet.api_key,
+                  "created_at": sheet.created_at.isoformat()},
+        "summary": stats,
+        "challenges": rows,
+    }
+    return Response(content=json.dumps(data, indent=2, ensure_ascii=False, default=str),
+                    media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}.json"'})
 
 
 # ----------------------------- HTMX row actions ----------------------------- #

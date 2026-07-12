@@ -7,6 +7,10 @@
     <h1 class="text-2xl font-bold">{{ sheet.name }}</h1>
     <div class="text-xs text-slate-500">api-key: <code class="bg-slate-100 px-2 py-0.5 rounded select-all">{{ sheet.api_key }}</code></div>
   </div>
+  <div class="flex gap-2">
+    <a href="/sheets/{{ sheet.id }}/export?format=json" class="text-xs bg-slate-700 text-white px-3 py-2 rounded hover:bg-slate-600">导出 JSON</a>
+    <a href="/sheets/{{ sheet.id }}/export?format=csv" class="text-xs bg-emerald-600 text-white px-3 py-2 rounded hover:bg-emerald-500">导出 CSV</a>
+  </div>
 </div>
 
 {# filter bar — outside #board so it survives the 4s poll #}

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
 from ..deps import current_user
-from ..models import SolveSheet, User
+from ..models import Attempt, Challenge, SolveSheet, User
 from ..security import generate_api_key
 from ..service import delete_sheet as svc_delete_sheet
 
@@ -49,3 +49,31 @@ async def create_sheet(data: SheetIn, user: User = Depends(current_user), db: As
 async def delete_sheet(sheet_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict:
     sheet = await _owned(db, user, sheet_id)
     return await svc_delete_sheet(db, sheet)
+
+
+@router.get("/{sheet_id}/export")
+async def export_sheet(sheet_id: int, user: User = Depends(current_user),
+                       db: AsyncSession = Depends(get_db)) -> dict:
+    sheet = await _owned(db, user, sheet_id)
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    atts = {a.challenge_id: a for a in
+            (await db.execute(select(Attempt).where(Attempt.sheet_id == sheet.id))).scalars().all()}
+    rows, solved, running = [], 0, 0
+    for c in challs:
+        a = atts.get(c.id)
+        st = "solved" if a and a.status == "solved" else ("in_progress" if a and a.status == "in_progress" else "not_started")
+        if st == "solved": solved += 1
+        elif st == "in_progress": running += 1
+        rows.append({
+            "benchmark": c.benchmark, "title": c.title, "level": c.level,
+            "tags": c.tags.split(",") if c.tags else [], "status": st,
+            "started_at": a.started_at.isoformat() if a and a.started_at else None,
+            "solved_at": a.solved_at.isoformat() if a and a.solved_at else None,
+            "solve_duration_ms": a.solve_duration_ms if a else None,
+        })
+    return {
+        "sheet": {"id": sheet.id, "name": sheet.name, "api_key": sheet.api_key,
+                  "created_at": sheet.created_at.isoformat()},
+        "summary": {"total": len(challs), "solved": solved, "running": running, "unsolved": len(challs) - solved},
+        "challenges": rows,
+    }
