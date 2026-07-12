@@ -77,7 +77,7 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
         if "phantomjs" in patched:
             pjbin = (
                 "libfontconfig1 libfreetype6 libssl1.1 ca-certificates curl "
-                "&& curl -fsSL https://gh-proxy.com/https://github.com/phantomjs/phantomjs/releases/download/2.1.1/phantomjs-2.1.1-linux-x86_64.tar.bz2 -o /tmp/pj.tar.bz2 "
+                "&& curl -fsSL https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 -o /tmp/pj.tar.bz2 "
                 "&& tar xjf /tmp/pj.tar.bz2 -C /usr/local --strip-components=2 phantomjs-2.1.1-linux-x86_64/bin/phantomjs "
                 "&& rm /tmp/pj.tar.bz2 && ln -sf /usr/local/phantomjs /usr/local/bin/phantomjs"
             )
