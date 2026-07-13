@@ -47,8 +47,6 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
 
     async def gen():
         try:
-            # aiter_bytes (not aiter_raw) so httpx decodes content-encoding (gzip)
-            # and we strip content-encoding from the response headers below
             async for chunk in resp.aiter_bytes():
                 yield chunk
         finally:

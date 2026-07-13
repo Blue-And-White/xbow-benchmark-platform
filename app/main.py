@@ -77,16 +77,19 @@ async def _seed_config() -> None:
 
 
 async def _refresh_image_status() -> None:
-    """Check docker images for all challenges and update image_built in DB."""
+    """Check docker images for all challenges and update image_built in DB (batch)."""
     from . import docker_ops
     from sqlalchemy import select
+    import asyncio
     async with SessionLocal() as db:
         challs = (await db.execute(select(Challenge))).scalars().all()
-        for c in challs:
+        # Batch: check all images concurrently (104 docker inspect in parallel)
+        async def _check(c):
             if c.service:
                 c.image_built = await docker_ops.image_exists(c.benchmark, c.service)
             else:
                 c.image_built = False
+        await asyncio.gather(*[_check(c) for c in challs])
         await db.commit()
         built = sum(1 for c in challs if c.image_built)
         log.info("image status refreshed: %d/%d built", built, len(challs))
