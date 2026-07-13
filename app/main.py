@@ -106,9 +106,6 @@ async def _image_refresh_loop() -> None:
             await _refresh_image_status()
         except Exception as e:
             log.warning("image refresh error: %s", e)
-                allow_direct_port=settings.allow_direct_port,
-            ))
-            await db.commit()
 
 
 async def _seed_admin() -> None:
