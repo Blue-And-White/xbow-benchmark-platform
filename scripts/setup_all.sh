@@ -8,13 +8,13 @@
 #
 # 环境变量(可选):
 #   XBOW_PORT=6888              平台端口(默认6888)
-#   XBOW_ADMIN_PASSWORD=LXW@123 管理员密码
+#   XBOW_ADMIN_PASSWORD=YOUR_PASSWORD 管理员密码
 #   XBOW_N_BUILD=104            构建多少题(默认全部104)
 # ============================================================
 set -euo pipefail
 
 PORT="${XBOW_PORT:-6888}"
-ADMIN_PW="${XBOW_ADMIN_PASSWORD:-LXW@123}"
+ADMIN_PW="${XBOW_ADMIN_PASSWORD:-YOUR_PASSWORD}"
 N_BUILD="${XBOW_N_BUILD:-104}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

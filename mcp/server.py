@@ -7,7 +7,7 @@ Usage (in the agent's MCP config):
         "command": "python",
         "args": ["mcp/server.py"],
         "env": {
-          "XBOW_PLATFORM_URL": "http://121.5.30.191:6888",
+          "XBOW_PLATFORM_URL": "http://YOUR_SERVER_IP:6888",
           "XBOW_API_KEY": "xben_xxx"
         }
       }

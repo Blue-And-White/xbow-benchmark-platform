@@ -13,7 +13,7 @@
       "command": "python",
       "args": ["/path/to/mcp/server.py"],
       "env": {
-        "XBOW_PLATFORM_URL": "http://121.5.30.191:6888",
+        "XBOW_PLATFORM_URL": "http://YOUR_SERVER_IP:6888",
         "XBOW_API_KEY": "xben_你的api_key"
       }
     }
