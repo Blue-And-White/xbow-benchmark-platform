@@ -29,7 +29,7 @@ CA_PATH = "/etc/ssl/certs/ca-certificates.crt"
 # - current debian -> tencent mirror; ubuntu -> tencent; alpine -> aliyun.
 PATCH = (
     "COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n"
-    "RUN echo 'Acquire::Retries \"20\"; Acquire::http::Proxy \"http://172.17.0.1:3142\"; Acquire::https::Proxy \"http://172.17.0.1:3142\";' > /etc/apt/apt.conf.d/80proxy; \\\n"
+    "RUN echo 'Acquire::Retries \"20\";' > /etc/apt/apt.conf.d/80proxy; \\\n"
     "    if grep -qE ' (buster|stretch|jessie|wheezy)( |$|-|/)' /etc/apt/sources.list 2>/dev/null; then \\\n"
     "      sed -i 's|deb.debian.org|archive.debian.org|g; s|security.debian.org|archive.debian.org|g' /etc/apt/sources.list; \\\n"
     "      sed -i '/-updates/d; /snapshot.debian.org/d' /etc/apt/sources.list; \\\n"
@@ -113,6 +113,18 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
         patched = patched.replace("RUN composer install",
                                   "RUN composer install --ignore-platform-reqs")
         df.write_text(patched)
+        # Also patch ALL other Dockerfiles in this benchmark (e.g. haproxy, mitmproxy
+        # that don't have ARG FLAG but still need apt source fixes for buster EOL).
+        all_dfs = sorted(bench_dir.rglob("Dockerfile"))
+        other_patches = []
+        for other_df in all_dfs:
+            if other_df == df:
+                continue
+            other_orig = other_df.read_text()
+            other_ca = other_df.parent / "ca-certificates.crt"
+            other_ca.write_bytes(ca_bytes)
+            other_patches.append((other_df, other_orig, other_ca))
+            other_df.write_text(insert_patch(other_orig))
         # 'make clean' removes the stale .xben_build_done guard so make actually
         # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
         p = subprocess.run(["bash", "-c", "make clean && make build"], cwd=bench_dir,
@@ -133,6 +145,11 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             pj_ctx = ctx / "phantomjs.tar.bz2"
             if pj_ctx.exists():
                 pj_ctx.unlink()
+            # restore other Dockerfiles + remove their ca-certificates.crt
+            for other_df, other_orig, other_ca in other_patches:
+                other_df.write_text(other_orig)
+                if other_ca.exists():
+                    other_ca.unlink()
         except Exception:
             pass
 
