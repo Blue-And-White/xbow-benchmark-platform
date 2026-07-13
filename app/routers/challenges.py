@@ -37,7 +37,6 @@ def _view(c: Challenge, att: Attempt | None) -> dict:
         "supported": c.supported, "status": status, "started_at": started_at,
         "solved_at": solved_at, "solve_duration_ms": dur,
     }
-    }
 
 
 async def _get_challenge(db: AsyncSession, benchmark: str) -> Challenge:
