@@ -42,6 +42,14 @@
       —
     {% endif %}
   </td>
+  {# 镜像就绪列 #}
+  <td class="px-3 py-2 text-center align-top">
+    {% if image_ready[c.benchmark] %}
+      <span class="inline-block text-xs text-emerald-600" title="镜像已构建">✓</span>
+    {% else %}
+      <span class="inline-block text-xs text-slate-300" title="镜像未构建">✗</span>
+    {% endif %}
+  </td>
   {# 操作列 #}
   <td class="px-3 py-2 text-right align-top">
     <div class="flex items-center justify-end gap-1">

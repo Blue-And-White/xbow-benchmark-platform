@@ -99,9 +99,18 @@ def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
 async def _board_ctx(db: AsyncSession, sheet: SolveSheet, user: User) -> dict:
     challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
     atts = await _atts_map(db, sheet.id)
+    # check which challenges have images built
+    from . import docker_ops
+    image_ready = {}
+    for c in challs:
+        if c.service:
+            image_ready[c.benchmark] = await docker_ops.image_exists(c.benchmark, c.service)
+        else:
+            image_ready[c.benchmark] = False
     return {
         "sheet": sheet, "challenges": challs, "atts": atts,
         "cfg": await get_config(db), "user": user, "stats": _stats(challs, atts),
+        "image_ready": image_ready,
     }
 
 

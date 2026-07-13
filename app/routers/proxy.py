@@ -18,7 +18,10 @@ from ..models import Attempt, AttemptStatus
 router = APIRouter(tags=["proxy"])
 
 _HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-        "te", "trailers", "transfer-encoding", "upgrade", "host", "content-encoding",
+        "te", "trailers", "transfer-encoding", "upgrade", "host",
+        # NOTE: content-encoding is NOT stripped — if the challenge returns gzip,
+        # we pass it through with the header so the browser can decompress.
+        # (stripping it causes garbled content: compressed bytes + no header)
         "content-length"}
 
 
@@ -44,11 +47,15 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
 
     async def gen():
         try:
-            async for chunk in resp.aiter_raw():
+            # aiter_bytes (not aiter_raw) so httpx decodes content-encoding (gzip)
+            # and we strip content-encoding from the response headers below
+            async for chunk in resp.aiter_bytes():
                 yield chunk
         finally:
             await resp.aclose()
             await client.aclose()
 
-    out_headers = {k: v for k, v in resp.headers.items() if k.lower() not in _HOP}
+    # strip hop-by-hop + content-encoding (httpx already decoded the body)
+    out_headers = {k: v for k, v in resp.headers.items()
+                   if k.lower() not in _HOP and k.lower() != "content-encoding" and k.lower() != "content-length"}
     return StreamingResponse(gen(), status_code=resp.status_code, headers=out_headers)
