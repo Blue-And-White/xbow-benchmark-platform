@@ -125,8 +125,13 @@ function submitDelForm() {
   if (check.disabled || !check.checked && !document.getElementById('del-running-warn').classList.contains('hidden')) {
     if (!check.checked) return;
   }
+  var btn = document.getElementById('del-confirm-btn');
+  var cancelBtn = btn.parentElement.querySelector('button[type=button]');
+  btn.disabled = true;
+  btn.textContent = '删除中…';
+  btn.className = 'px-4 py-2 rounded bg-slate-400 text-white text-sm cursor-wait';
+  if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.classList.add('opacity-50','pointer-events-none'); }
   document.getElementById('force-' + _delSheetId).value = check.checked ? 'on' : '';
-  document.getElementById('del-modal').classList.add('hidden');
   var form = document.querySelector('form[action="/sheets/' + _delSheetId + '/delete"]');
   if (form) form.submit();
 }
