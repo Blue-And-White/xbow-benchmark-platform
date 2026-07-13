@@ -55,7 +55,7 @@
       <a href="/sheets/{{ s.id }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 text-center text-sm">进入看板</a>
       <form method="post" action="/sheets/{{ s.id }}/delete" onsubmit="return false;">
         <input type="hidden" name="force" value="" id="force-{{ s.id }}">
-        <button type="button" onclick="openDeleteModal({{ s.id }}, {{ s.running if s.running else 0 }}, '{{ s.name }}')"
+        <button type="button" onclick="openDeleteModal({{ s.id }}, {{ sheet_stats[s.id].running }}, '{{ s.name }}')"
                 class="bg-rose-500 text-white px-3 py-1.5 rounded hover:bg-rose-400 w-full text-sm">删除</button>
       </form>
     </div>
