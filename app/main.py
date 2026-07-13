@@ -17,7 +17,12 @@ from .security import hash_password
 
 log = logging.getLogger("xben")
 
-app = FastAPI(title="xbow CTF platform", version="0.1.0")
+app = FastAPI(
+    title="xbow CTF platform", version="0.1.0",
+    docs_url=None,        # disable /docs in production
+    redoc_url=None,       # disable /redoc
+    openapi_url=None,     # disable /openapi.json (don't leak API structure)
+)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, same_site="lax")
 
 for r in (auth, sheets, challenges, leaderboard, admin):
