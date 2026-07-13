@@ -163,7 +163,7 @@ async def stop(db: AsyncSession, sheet: SolveSheet, c: Challenge) -> dict:
     att.compose_project = None
     att.host_port = None
     att.dynamic_flag = None
-    att.started_at = None
+    # KEEP started_at — record of attempt preserved (prevent "reset = cheat")
     att.solved_at = None
     att.solve_duration_ms = None
     await db.commit()

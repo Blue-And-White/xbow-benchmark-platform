@@ -29,11 +29,14 @@ def _view(c: Challenge, att: Attempt | None) -> dict:
         elif att.status == "in_progress":
             status = "in_progress"
             started_at = att.started_at.isoformat() if att.started_at else None
+        elif att.status == "abandoned":
+            status = "abandoned"  # 已尝试未解 — 不重置回 not_started
+            started_at = att.started_at.isoformat() if att.started_at else None
     return {
-        "benchmark": c.benchmark, "title": c.title, "level": c.level,
-        "tags": c.tags.split(",") if c.tags else [], "win_condition": c.win_condition,
+        "benchmark": c.benchmark, "level": c.level,
         "supported": c.supported, "status": status, "started_at": started_at,
         "solved_at": solved_at, "solve_duration_ms": dur,
+    }
     }
 
 

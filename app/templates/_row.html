@@ -1,7 +1,10 @@
-{# partial: one challenge table row. vars: c, att, sheet, cfg, elapsed() global #}
+{# partial: one challenge table row. vars: c, att, sheet, cfg, elapsed() global
+   看板 = 监控面板: 只看状态 + 手动关闭(杀卡住的容器).
+   启动/提交 是 agent 通过 API 做的, 不在 UI 上. #}
 {% if not c.supported %}{% set st = 'unsupported' %}
 {% elif att and att.status == 'solved' %}{% set st = 'solved' %}
 {% elif att and att.status == 'in_progress' %}{% set st = 'in_progress' %}
+{% elif att and att.status == 'abandoned' %}{% set st = 'abandoned' %}
 {% else %}{% set st = 'not_started' %}{% endif %}
 <tr class="border-t hover:bg-slate-50" id="row-{{ c.benchmark }}"
     data-level="{{ c.level }}" data-status="{{ st }}"
@@ -16,11 +19,13 @@
   <td class="px-3 py-2 text-center align-top">
     {% if not c.supported %}
       <span class="text-xs text-slate-300">不可用</span>
-    {% elif att and att.status == 'solved' %}
+    {% elif st == 'solved' %}
       <span class="text-emerald-600 font-semibold">✓ 已解</span>
       {% if att.solve_duration_ms %}<div class="text-[10px] text-slate-400">{{ (att.solve_duration_ms / 1000) | round(1) }}s</div>{% endif %}
-    {% elif att and att.status == 'in_progress' %}
+    {% elif st == 'in_progress' %}
       <span class="text-amber-600 font-semibold text-xs">作答中 {{ elapsed(att) }}s</span>
+    {% elif st == 'abandoned' %}
+      <span class="text-slate-500 font-semibold text-xs">已尝试未解</span>
     {% else %}
       <span class="text-xs text-slate-300">未开始</span>
     {% endif %}
@@ -28,25 +33,20 @@
   <td class="px-3 py-2 text-right align-top">
     <div class="flex items-center justify-end gap-1">
       {% if not c.supported %}
-        <button disabled class="text-xs bg-slate-200 text-slate-400 px-3 py-1.5 rounded cursor-not-allowed">启动</button>
-      {% elif att and att.status == 'solved' %}
+        <span class="text-xs text-slate-300">—</span>
+      {% elif st == 'solved' %}
         <span class="text-xs text-emerald-600">完成</span>
-      {% elif att and att.status == 'in_progress' %}
+      {% elif st == 'in_progress' %}
         {% set proxied = (cfg.public_base_url or '') | trim('/') ~ '/c/' ~ att.id ~ '/' %}
-        <a href="{{ proxied }}" target="_blank" class="text-xs text-blue-600 hover:underline whitespace-nowrap">进入靶机 ↗</a>
-        <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/submit"
-              hx-target="closest tr" hx-swap="outerHTML" class="flex gap-1" autocomplete="off">
-          <input name="flag" placeholder="FLAG{...}" class="text-xs border rounded px-2 py-1 w-28 font-mono" required>
-          <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-500">提交</button>
-        </form>
+        <a href="{{ proxied }}" target="_blank" class="text-xs text-blue-600 hover:underline whitespace-nowrap">查看靶机 ↗</a>
         <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/stop"
               hx-target="closest tr" hx-swap="outerHTML">
-          <button class="text-xs bg-rose-500 text-white px-2 py-1 rounded hover:bg-rose-400" hx-confirm="确认停止并清除本次?">停止</button>
+          <button class="text-xs bg-rose-500 text-white px-2 py-1 rounded hover:bg-rose-400" hx-confirm="确认手动关闭此题容器?">手动关闭</button>
         </form>
+      {% elif st == 'abandoned' %}
+        <span class="text-xs text-slate-400">已关闭</span>
       {% else %}
-        <button hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/start"
-                hx-target="closest tr" hx-swap="outerHTML" hx-disabled-elt="this"
-                class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-500">启动</button>
+        <span class="text-xs text-slate-300">等待启动</span>
       {% endif %}
     </div>
   </td>

@@ -10,8 +10,12 @@
     <div class="text-2xl font-bold text-amber-600">{{ stats.running }}</div>
   </div>
   <div class="bg-white rounded shadow p-3">
+    <div class="text-xs text-slate-400">已尝试未解</div>
+    <div class="text-2xl font-bold text-slate-500">{{ stats.abandoned or 0 }}</div>
+  </div>
+  <div class="bg-white rounded shadow p-3">
     <div class="text-xs text-slate-400">未开始</div>
-    <div class="text-2xl font-bold text-slate-500">{{ stats.unsolved }}</div>
+    <div class="text-2xl font-bold text-slate-400">{{ stats.unsolved }}</div>
   </div>
   <div class="bg-white rounded shadow p-3">
     <div class="text-xs text-slate-400 mb-1">按难度</div>

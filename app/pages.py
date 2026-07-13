@@ -64,11 +64,13 @@ def _status_of(c: Challenge, atts: dict[int, Attempt]) -> str:
         return "solved"
     if a and a.status == "in_progress":
         return "in_progress"
+    if a and a.status == "abandoned":
+        return "abandoned"
     return "not_started"
 
 
 def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
-    solved = running = 0
+    solved = running = abandoned = 0
     levels: dict[str, dict] = {}
     for c in challs:
         st = _status_of(c, atts)
@@ -76,6 +78,8 @@ def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
             solved += 1
         elif st == "in_progress":
             running += 1
+        elif st == "abandoned":
+            abandoned += 1
         lv = c.level or "?"
         d = levels.setdefault(lv, {"total": 0, "solved": 0, "running": 0})
         d["total"] += 1
@@ -83,9 +87,11 @@ def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
             d["solved"] += 1
         elif st == "in_progress":
             d["running"] += 1
+        elif st == "abandoned":
+            d["abandoned"] = d.get("abandoned", 0) + 1
     total = len(challs)
     return {
-        "total": total, "solved": solved, "running": running,
+        "total": total, "solved": solved, "running": running, "abandoned": abandoned,
         "unsolved": total - solved, "levels": levels,
     }
 
