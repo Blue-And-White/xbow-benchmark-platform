@@ -16,7 +16,7 @@
     {% if user %}
       <a href="/sheets" class="hover:underline">我的解题表</a>
       <a href="/leaderboard" class="hover:underline">排行榜</a>
-      <a href="/api-help" class="hover:underline">API 文档</a>
+      <a href="/api-help" class="hover:underline">接入指南</a>
       {% if user.role == 'admin' %}<a href="/admin" class="hover:underline">管理</a>{% endif %}
       <span class="text-slate-400">|</span>
       <span class="text-slate-300">{{ user.username }}</span>
