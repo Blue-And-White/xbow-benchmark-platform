@@ -3,47 +3,101 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">平台管理</h1>
 
-{# 镜像状态 #}
-<div class="bg-white rounded shadow p-5 mb-6">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="font-semibold text-lg">靶机镜像状态</h2>
-    <button hx-get="/admin/images" hx-target="#img-status" hx-swap="innerHTML"
-            class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded hover:bg-slate-600">刷新</button>
+{# 页签 #}
+<div class="flex gap-1 mb-4 border-b">
+  <button onclick="showTab('settings')" id="tab-settings" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">平台设置</button>
+  <button onclick="showTab('users')" id="tab-users" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500">用户管理</button>
+  <button onclick="showTab('images')" id="tab-images" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500">靶机镜像</button>
+</div>
+
+{# 设置页签 #}
+<div id="panel-settings" class="max-w-xl">
+  <div class="bg-white p-5 rounded shadow">
+    <h2 class="font-semibold text-lg mb-3">平台设置</h2>
+    <form method="post" action="/admin" class="space-y-3">
+      <label class="block text-sm">注册码
+        <input name="registration_code" value="{{ cfg.registration_code }}" class="w-full border rounded px-3 py-2 mt-1">
+      </label>
+      <label class="block text-sm">每看板最大并发题数
+        <input type="number" name="max_concurrent" value="{{ cfg.max_concurrent_per_user }}" class="w-full border rounded px-3 py-2 mt-1">
+      </label>
+      <label class="block text-sm">对外基础URL
+        <input name="public_base_url" value="{{ cfg.public_base_url }}" class="w-full border rounded px-3 py-2 mt-1">
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="allow_direct_port" {{ 'checked' if cfg.allow_direct_port else '' }}>
+        允许返回直连端口
+      </label>
+      <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">保存</button>
+    </form>
   </div>
-  <div id="img-status">
-    <div hx-get="/admin/images" hx-trigger="load" hx-swap="innerHTML">
-      <p class="text-slate-400 text-sm">加载中…</p>
+</div>
+
+{# 用户页签 #}
+<div id="panel-users" class="hidden max-w-2xl">
+  <div class="bg-white rounded shadow overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600">
+        <tr><th class="px-4 py-2 text-left">ID</th><th class="px-4 py-2 text-left">用户名</th><th class="px-4 py-2 text-left">角色</th><th class="px-4 py-2 text-left">状态</th><th class="px-4 py-2 text-right">操作</th></tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr class="border-t">
+        <td class="px-4 py-2">{{ u.id }}</td>
+        <td class="px-4 py-2">{{ u.username }}</td>
+        <td class="px-4 py-2">
+          {% if u.role == 'admin' %}<span class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">管理员</span>{% else %}<span class="text-xs text-slate-500">用户</span>{% endif %}
+        </td>
+        <td class="px-4 py-2">
+          {% if u.disabled %}<span class="text-xs text-rose-500">禁用</span>{% else %}<span class="text-xs text-emerald-600">正常</span>{% endif %}
+        </td>
+        <td class="px-4 py-2 text-right">
+          {% if u.role != 'admin' %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">
+            <button class="text-xs px-2 py-1 rounded {{ 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' if u.disabled else 'bg-amber-100 text-amber-700 hover:bg-amber-200' }}">
+              {{ '启用' if u.disabled else '禁用' }}
+            </button>
+          </form>
+          <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline" onsubmit="return confirm('确认删除用户 {{ u.username }}？其所有解题表和数据将被清除。')">
+            <button class="text-xs px-2 py-1 rounded bg-rose-100 text-rose-600 hover:bg-rose-200">删除</button>
+          </form>
+          {% else %}
+          <span class="text-xs text-slate-400">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# 镜像页签 #}
+<div id="panel-images" class="hidden">
+  <div class="bg-white rounded shadow p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-lg">靶机镜像状态</h2>
+      <button hx-get="/admin/images" hx-target="#img-status" hx-swap="innerHTML"
+              class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded hover:bg-slate-600">刷新</button>
+    </div>
+    <div id="img-status">
+      <div hx-get="/admin/images" hx-trigger="load" hx-swap="innerHTML">
+        <p class="text-slate-400 text-sm">加载中…</p>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="bg-white p-5 rounded shadow mb-6 max-w-xl">
-  <h2 class="font-semibold text-lg mb-3">平台设置</h2>
-  <form method="post" action="/admin" class="space-y-3">
-    <label class="block text-sm">注册码
-      <input name="registration_code" value="{{ cfg.registration_code }}" class="w-full border rounded px-3 py-2 mt-1">
-    </label>
-    <label class="block text-sm">每用户最大并发题数
-      <input type="number" name="max_concurrent" value="{{ cfg.max_concurrent_per_user }}" class="w-full border rounded px-3 py-2 mt-1">
-    </label>
-    <label class="block text-sm">对外基础URL
-      <input name="public_base_url" value="{{ cfg.public_base_url }}" class="w-full border rounded px-3 py-2 mt-1">
-    </label>
-    <label class="flex items-center gap-2 text-sm">
-      <input type="checkbox" name="allow_direct_port" {{ 'checked' if cfg.allow_direct_port else '' }}>
-      允许返回直连端口
-    </label>
-    <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">保存</button>
-  </form>
-</div>
-
-<div class="bg-white rounded shadow overflow-hidden max-w-xl">
-  <h2 class="font-semibold p-4">用户 ({{ users|length }})</h2>
-  <table class="w-full text-sm">
-    <thead class="bg-slate-100 text-slate-600"><tr><th class="px-4 py-2 text-left">ID</th><th class="px-4 py-2 text-left">用户名</th><th class="px-4 py-2 text-left">角色</th></tr></thead>
-    <tbody>
-    {% for u in users %}<tr class="border-t"><td class="px-4 py-2">{{ u.id }}</td><td class="px-4 py-2">{{ u.username }}</td><td class="px-4 py-2">{{ u.role }}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div>
+<script>
+function showTab(name) {
+  ['settings','users','images'].forEach(t => {
+    document.getElementById('panel-'+t).classList.add('hidden');
+    document.getElementById('tab-'+t).classList.remove('border-blue-600','text-blue-600');
+    document.getElementById('tab-'+t).classList.add('border-transparent','text-slate-500');
+  });
+  document.getElementById('panel-'+name).classList.remove('hidden');
+  document.getElementById('tab-'+name).classList.add('border-blue-600','text-blue-600');
+  document.getElementById('tab-'+name).classList.remove('border-transparent','text-slate-500');
+}
+</script>
 {% endblock %}

@@ -34,6 +34,9 @@ async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> 
     if user is None:
         request.session.clear()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user gone")
+    if user.disabled:
+        request.session.clear()
+        raise HTTPException(status_code=403, detail="account disabled")
     return user
 
 

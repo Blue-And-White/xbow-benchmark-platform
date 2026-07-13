@@ -1,12 +1,12 @@
-{# partial: one challenge table row. vars: c, att, sheet, cfg, elapsed() global
-   看板 = 监控面板: 只看状态 + 手动关闭(杀卡住的容器).
-   启动/提交 是 agent 通过 API 做的, 不在 UI 上. #}
+{# partial: one challenge table row.
+   看板 = 监控面板: 状态列 + 用时列(分开) + 手动关闭.
+   启动/提交是agent通过API做. #}
 {% if not c.supported %}{% set st = 'unsupported' %}
 {% elif att and att.status == 'solved' %}{% set st = 'solved' %}
 {% elif att and att.status == 'in_progress' %}{% set st = 'in_progress' %}
 {% elif att and att.status == 'abandoned' %}{% set st = 'abandoned' %}
 {% else %}{% set st = 'not_started' %}{% endif %}
-<tr class="border-t hover:bg-slate-50" id="row-{{ c.benchmark }}"
+<tr class="border-t hover:bg-slate-50 transition-colors" id="row-{{ c.benchmark }}"
     data-level="{{ c.level }}" data-status="{{ st }}"
     data-search="{{ (c.benchmark ~ ' ' ~ c.title ~ ' ' ~ c.tags)|lower }}">
   <td class="px-3 py-2 font-mono text-xs text-slate-400 align-top">{{ c.benchmark }}</td>
@@ -16,32 +16,53 @@
   </td>
   <td class="px-3 py-2 align-top"><span class="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">L{{ c.level }}</span></td>
   <td class="px-3 py-2 align-top text-xs text-slate-400">{{ c.tags }}</td>
+  {# 状态列(纯状态) #}
   <td class="px-3 py-2 text-center align-top">
     {% if not c.supported %}
-      <span class="text-xs text-slate-300">不可用</span>
+      <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">不可用</span>
     {% elif st == 'solved' %}
-      <span class="text-emerald-600 font-semibold">✓ 已解</span>
-      {% if att.solve_duration_ms %}<div class="text-[10px] text-slate-400">{{ (att.solve_duration_ms / 1000) | round(1) }}s</div>{% endif %}
+      <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">✓ 已解</span>
     {% elif st == 'in_progress' %}
-      <span class="text-amber-600 font-semibold text-xs">作答中 {{ elapsed(att) }}s</span>
+      <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium animate-pulse">作答中</span>
     {% elif st == 'abandoned' %}
-      <span class="text-slate-500 font-semibold text-xs">已尝试未解</span>
+      <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">已尝试</span>
     {% else %}
-      <span class="text-xs text-slate-300">未开始</span>
+      <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-50 text-slate-400">未解</span>
     {% endif %}
   </td>
+  {# 用时列(独立) #}
+  <td class="px-3 py-2 text-right align-top text-xs text-slate-500">
+    {% if st == 'solved' and att.solve_duration_ms %}
+      {{ (att.solve_duration_ms / 1000) | round(1) }}s
+    {% elif st == 'in_progress' %}
+      <span class="text-amber-600">{{ elapsed(att) }}s</span>
+    {% elif st == 'abandoned' %}
+      <span class="text-slate-400">—</span>
+    {% else %}
+      —
+    {% endif %}
+  </td>
+  {# 操作列 #}
   <td class="px-3 py-2 text-right align-top">
     <div class="flex items-center justify-end gap-1">
       {% if not c.supported %}
         <span class="text-xs text-slate-300">—</span>
       {% elif st == 'solved' %}
-        <span class="text-xs text-emerald-600">完成</span>
+        <span class="text-xs text-emerald-600 font-medium">完成</span>
       {% elif st == 'in_progress' %}
         {% set proxied = (cfg.public_base_url or '') | trim('/') ~ '/c/' ~ att.id ~ '/' %}
-        <a href="{{ proxied }}" target="_blank" class="text-xs text-blue-600 hover:underline whitespace-nowrap">查看靶机 ↗</a>
+        <a href="{{ proxied }}" target="_blank"
+           class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-0L10 14"/></svg>
+          查看靶机
+        </a>
         <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/stop"
-              hx-target="closest tr" hx-swap="outerHTML">
-          <button class="text-xs bg-rose-500 text-white px-2 py-1 rounded hover:bg-rose-400" hx-confirm="确认手动关闭此题容器?">手动关闭</button>
+              hx-target="closest tr" hx-swap="outerHTML" class="inline">
+          <button class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                  hx-confirm="确认手动关闭此题容器?">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            关闭
+          </button>
         </form>
       {% elif st == 'abandoned' %}
         <span class="text-xs text-slate-400">已关闭</span>

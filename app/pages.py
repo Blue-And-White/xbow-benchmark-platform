@@ -361,3 +361,27 @@ async def admin_update(request: Request, registration_code: str = Form(None), ma
         cfg.allow_direct_port = allow_direct_port == "on"
     await db.commit()
     return RedirectResponse("/admin", status_code=303)
+
+
+@router.post("/admin/users/{uid}/toggle", include_in_schema=False)
+async def admin_toggle_user(uid: int, user: User = Depends(current_user),
+                            db: AsyncSession = Depends(get_db)) -> RedirectResponse:
+    if user.role != "admin":
+        raise HTTPException(403, "admin only")
+    target = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+    if target and target.role != "admin":
+        target.disabled = not target.disabled
+        await db.commit()
+    return RedirectResponse("/admin", status_code=303)
+
+
+@router.post("/admin/users/{uid}/delete", include_in_schema=False)
+async def admin_delete_user(uid: int, user: User = Depends(current_user),
+                             db: AsyncSession = Depends(get_db)) -> RedirectResponse:
+    if user.role != "admin":
+        raise HTTPException(403, "admin only")
+    target = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+    if target and target.role != "admin":
+        await db.delete(target)  # cascades sheets + attempts
+        await db.commit()
+    return RedirectResponse("/admin", status_code=303)
