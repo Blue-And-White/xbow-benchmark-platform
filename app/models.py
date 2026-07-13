@@ -48,6 +48,7 @@ class PlatformConfig(Base):
     max_concurrent_per_user: Mapped[int] = mapped_column(Integer, default=3)
     public_base_url: Mapped[str] = mapped_column(String(256))
     allow_direct_port: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_refresh_images: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class SolveSheet(Base):
@@ -78,6 +79,7 @@ class Challenge(Base):
     flag_type: Mapped[str | None] = mapped_column(String(16))   # file|env|embedded
     flag_path: Mapped[str | None] = mapped_column(String(256))
     original_flag: Mapped[str | None] = mapped_column(String(128))
+    image_built: Mapped[bool] = mapped_column(Boolean, default=False)  # cached: image exists locally
 
 
 class Attempt(Base):

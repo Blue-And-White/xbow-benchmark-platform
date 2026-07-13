@@ -55,6 +55,9 @@ async def _startup() -> None:
     await _seed_config()
     await _seed_admin()
     await _seed_challenges()
+    await _refresh_image_status()  # initial sync on startup
+    import asyncio
+    asyncio.create_task(_image_refresh_loop())  # background 5-min refresh
 
 
 async def _seed_config() -> None:
@@ -67,6 +70,42 @@ async def _seed_config() -> None:
                 registration_code=settings.registration_code,
                 max_concurrent_per_user=settings.max_concurrent_per_user,
                 public_base_url=settings.public_base_url,
+                allow_direct_port=settings.allow_direct_port,
+                auto_refresh_images=True,
+            ))
+            await db.commit()
+
+
+async def _refresh_image_status() -> None:
+    """Check docker images for all challenges and update image_built in DB."""
+    from . import docker_ops
+    from sqlalchemy import select
+    async with SessionLocal() as db:
+        challs = (await db.execute(select(Challenge))).scalars().all()
+        for c in challs:
+            if c.service:
+                c.image_built = await docker_ops.image_exists(c.benchmark, c.service)
+            else:
+                c.image_built = False
+        await db.commit()
+        built = sum(1 for c in challs if c.image_built)
+        log.info("image status refreshed: %d/%d built", built, len(challs))
+
+
+async def _image_refresh_loop() -> None:
+    """Background task: refresh image status every 5 minutes if auto_refresh_images is on."""
+    import asyncio
+    from sqlalchemy import select
+    while True:
+        await asyncio.sleep(300)  # 5 minutes
+        try:
+            async with SessionLocal() as db:
+                cfg = (await db.execute(select(PlatformConfig).where(PlatformConfig.id == 1))).scalar_one_or_none()
+                if cfg and not cfg.auto_refresh_images:
+                    continue
+            await _refresh_image_status()
+        except Exception as e:
+            log.warning("image refresh error: %s", e)
                 allow_direct_port=settings.allow_direct_port,
             ))
             await db.commit()

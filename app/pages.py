@@ -99,14 +99,7 @@ def _stats(challs: list[Challenge], atts: dict[int, Attempt]) -> dict:
 async def _board_ctx(db: AsyncSession, sheet: SolveSheet, user: User) -> dict:
     challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
     atts = await _atts_map(db, sheet.id)
-    # check which challenges have images built
-    from . import docker_ops
-    image_ready = {}
-    for c in challs:
-        if c.service:
-            image_ready[c.benchmark] = await docker_ops.image_exists(c.benchmark, c.service)
-        else:
-            image_ready[c.benchmark] = False
+    image_ready = {c.benchmark: c.image_built for c in challs}
     return {
         "sheet": sheet, "challenges": challs, "atts": atts,
         "cfg": await get_config(db), "user": user, "stats": _stats(challs, atts),
@@ -341,14 +334,13 @@ async def admin_page(request: Request, user: User = Depends(current_user), db: A
 @router.get("/admin/images", response_class=HTMLResponse, include_in_schema=False)
 async def admin_images_partial(request: Request, user: User = Depends(current_user),
                                 db: AsyncSession = Depends(get_db)):
-    """HTMX partial: image build status for the 104 benchmarks."""
+    """HTMX partial: image build status (from DB, not live docker inspect)."""
     if user.role != "admin":
         raise HTTPException(403, "admin only")
-    from . import docker_ops
     challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
     built, missing = [], []
     for c in challs:
-        if c.service and await docker_ops.image_exists(c.benchmark, c.service):
+        if c.image_built:
             built.append(c.benchmark)
         else:
             missing.append(c)
@@ -357,9 +349,20 @@ async def admin_images_partial(request: Request, user: User = Depends(current_us
     })
 
 
+@router.post("/admin/images/refresh", include_in_schema=False)
+async def admin_refresh_images(request: Request, user: User = Depends(current_user)):
+    """Manual refresh: check all images live and update DB."""
+    if user.role != "admin":
+        raise HTTPException(403, "admin only")
+    from .main import _refresh_image_status
+    await _refresh_image_status()
+    return RedirectResponse("/admin", status_code=303)
+
+
 @router.post("/admin", include_in_schema=False)
 async def admin_update(request: Request, registration_code: str = Form(None), max_concurrent: int = Form(None),
                        public_base_url: str = Form(None), allow_direct_port: str = Form(None),
+                       auto_refresh_images: str = Form(None),
                        user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> RedirectResponse:
     if user.role != "admin":
         raise HTTPException(403, "admin only")
@@ -370,8 +373,8 @@ async def admin_update(request: Request, registration_code: str = Form(None), ma
         cfg.max_concurrent_per_user = max_concurrent
     if public_base_url is not None:
         cfg.public_base_url = public_base_url
-    if allow_direct_port is not None:
-        cfg.allow_direct_port = allow_direct_port == "on"
+    cfg.allow_direct_port = allow_direct_port == "on"
+    cfg.auto_refresh_images = auto_refresh_images == "on"
     await db.commit()
     return RedirectResponse("/admin", status_code=303)
 
