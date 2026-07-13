@@ -59,9 +59,13 @@ def parse_flag_line(df_text: str) -> tuple[str | None, str | None, str | None]:
             toks = line.split()
             if toks:
                 path = toks[-1].strip("\"'")
-                if not path.startswith("/"):
-                    wd = (workdir or "/").rstrip("/")
-                    path = f"{wd}/{path}"
+                # Keep relative paths as-is (the flag file is relative to WORKDIR,
+                # and `docker compose exec` runs in WORKDIR). Only absolutize
+                # if there's no WORKDIR at all.
+                if not path.startswith("/") and workdir and workdir != "/":
+                    pass  # keep relative — exec runs in WORKDIR
+                elif not path.startswith("/"):
+                    path = f"/{path}"
                 return ("embedded", path, line)
         # RUN ... $FLAG ... > /path   (echo / printf / tee / etc.)
         if ">" in line:
