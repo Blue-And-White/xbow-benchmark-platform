@@ -29,14 +29,18 @@ async def get_config(db: AsyncSession = Depends(get_db)) -> PlatformConfig:
 async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
     uid = request.session.get("user_id")
     if not uid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not logged in")
+        request.session.clear()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not logged in",
+                            headers={"Location": "/login"})
     user = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
     if user is None:
         request.session.clear()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user gone")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user gone",
+                            headers={"Location": "/login"})
     if user.disabled:
         request.session.clear()
-        raise HTTPException(status_code=403, detail="account disabled")
+        raise HTTPException(status_code=403, detail="account disabled",
+                            headers={"Location": "/login?error=账号已禁用"})
     return user
 
 

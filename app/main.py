@@ -4,7 +4,8 @@ from __future__ import annotations
 import logging
 import secrets
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import manifest as manifest_mod
@@ -34,6 +35,18 @@ app.include_router(pages.router)                 # HTML UI at /
 @app.get("/health")
 async def health() -> dict:
     return {"ok": True}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """For browser requests (HTML), redirect to /login on 401/403.
+    For API requests (JSON), return the normal JSON error."""
+    accept = request.headers.get("accept", "")
+    if exc.status_code in (401, 403) and "text/html" in accept:
+        location = exc.headers.get("Location", "/login") if exc.headers else "/login"
+        return RedirectResponse(location, status_code=303)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
 
 
 @app.on_event("startup")
