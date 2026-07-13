@@ -10,7 +10,7 @@ from ..db import get_db
 from ..deps import current_user
 from ..models import Attempt, Challenge, SolveSheet, User
 from ..security import generate_api_key
-from ..service import delete_sheet as svc_delete_sheet
+from ..service import ServiceError, delete_sheet as svc_delete_sheet
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
 
