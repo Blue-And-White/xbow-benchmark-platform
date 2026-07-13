@@ -53,25 +53,86 @@
     </div>
     <div class="flex flex-col gap-2 shrink-0">
       <a href="/sheets/{{ s.id }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 text-center text-sm">进入看板</a>
-      <form method="post" action="/sheets/{{ s.id }}/delete"
-            onsubmit="return handleDelete(this, '{{ s.name }}')">
-        <label class="flex items-center gap-1.5 text-xs text-slate-500 mb-1 cursor-pointer">
-          <input type="checkbox" name="force" class="delete-force rounded">
-          关闭题目并删除
-        </label>
-        <button class="bg-rose-500 text-white px-3 py-1.5 rounded hover:bg-rose-400 w-full text-sm">删除</button>
+      <form method="post" action="/sheets/{{ s.id }}/delete" onsubmit="return false;">
+        <input type="hidden" name="force" value="" id="force-{{ s.id }}">
+        <button type="button" onclick="openDeleteModal({{ s.id }}, {{ s.running if s.running else 0 }}, '{{ s.name }}')"
+                class="bg-rose-500 text-white px-3 py-1.5 rounded hover:bg-rose-400 w-full text-sm">删除</button>
       </form>
     </div>
   </div>
   {% endfor %}
 </div>
+
+{# 删除看板弹窗 #}
+<div id="del-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-96">
+    <h2 class="text-lg font-bold mb-2">删除解题表</h2>
+    <p class="text-sm text-slate-600 mb-1">确认删除「<span id="del-name"></span>」？</p>
+    <p class="text-sm text-slate-500 mb-3">此操作不可恢复，全部解题数据将被清除。</p>
+    <div id="del-running-warn" class="hidden mb-3 p-2.5 rounded bg-amber-50 border border-amber-200">
+      <p class="text-xs text-amber-700 font-medium mb-1">⚠ 此看板有 <span id="del-running-count">0</span> 个题目正在作答中</p>
+      <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mt-1.5">
+        <input type="checkbox" id="del-force-check" class="rounded" onchange="updateDelBtn()">
+        关闭这些题目并删除
+      </label>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button type="button" onclick="closeDelModal()" class="px-4 py-2 rounded border hover:bg-slate-100 text-sm">取消</button>
+      <button type="button" id="del-confirm-btn" onclick="submitDelForm()"
+              class="px-4 py-2 rounded bg-slate-300 text-slate-400 text-sm cursor-not-allowed">确认删除</button>
+    </div>
+  </div>
+</div>
+
 <script>
-function handleDelete(form, name) {
-  var force = form.querySelector('.delete-force').checked;
-  var msg = force
-    ? '确认删除「' + name + '」？\n将先停止所有作答中的题目，然后删除全部数据。不可恢复。'
-    : '确认删除「' + name + '」？\n如果该看板有作答中的题目，删除将被拒绝。\n请先停止它们，或勾选「关闭题目并删除」。';
-  return confirm(msg);
+var _delSheetId = null;
+
+function openDeleteModal(id, running, name) {
+  _delSheetId = id;
+  document.getElementById('del-name').textContent = name;
+  document.getElementById('del-running-count').textContent = running;
+  var warn = document.getElementById('del-running-warn');
+  var check = document.getElementById('del-force-check');
+  var btn = document.getElementById('del-confirm-btn');
+  if (running > 0) {
+    warn.classList.remove('hidden');
+    check.checked = false;
+    btn.className = 'px-4 py-2 rounded bg-slate-300 text-slate-400 text-sm cursor-not-allowed';
+    btn.disabled = true;
+  } else {
+    warn.classList.add('hidden');
+    check.checked = true;
+    btn.className = 'px-4 py-2 rounded bg-rose-500 text-white text-sm hover:bg-rose-600 cursor-pointer';
+    btn.disabled = false;
+  }
+  document.getElementById('del-modal').classList.remove('hidden');
+}
+
+function updateDelBtn() {
+  var check = document.getElementById('del-force-check');
+  var btn = document.getElementById('del-confirm-btn');
+  if (check.checked) {
+    btn.className = 'px-4 py-2 rounded bg-rose-500 text-white text-sm hover:bg-rose-600 cursor-pointer';
+    btn.disabled = false;
+  } else {
+    btn.className = 'px-4 py-2 rounded bg-slate-300 text-slate-400 text-sm cursor-not-allowed';
+    btn.disabled = true;
+  }
+}
+
+function submitDelForm() {
+  var check = document.getElementById('del-force-check');
+  if (check.disabled || !check.checked && !document.getElementById('del-running-warn').classList.contains('hidden')) {
+    if (!check.checked) return;
+  }
+  document.getElementById('force-' + _delSheetId).value = check.checked ? 'on' : '';
+  document.getElementById('del-modal').classList.add('hidden');
+  var form = document.querySelector('form[action="/sheets/' + _delSheetId + '/delete"]');
+  if (form) form.submit();
+}
+
+function closeDelModal() {
+  document.getElementById('del-modal').classList.add('hidden');
 }
 </script>
 {% endblock %}
