@@ -1,14 +1,15 @@
-"""Admin: platform config + user management."""
+"""Admin: platform config + user management + image status."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import docker_ops
 from ..db import get_db
 from ..deps import current_user, get_config, require_admin
-from ..models import PlatformConfig, SolveSheet, User
+from ..models import PlatformConfig, SolveSheet, User, Challenge
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -57,3 +58,17 @@ async def list_users(admin: User = Depends(require_admin), db: AsyncSession = De
         sheets = (await db.execute(select(SolveSheet).where(SolveSheet.user_id == u.id))).scalars().all()
         out.append({"id": u.id, "username": u.username, "role": u.role, "sheets": len(sheets), "created_at": u.created_at.isoformat()})
     return out
+
+
+@router.get("/images")
+async def image_status(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)) -> dict:
+    """Check which of the 104 benchmarks have images built locally."""
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    built, missing = [], []
+    for c in challs:
+        if c.service and await docker_ops.image_exists(c.benchmark, c.service):
+            built.append(c.benchmark)
+        else:
+            missing.append({"benchmark": c.benchmark, "level": c.level, "supported": c.supported, "service": c.service})
+    return {"total": len(challs), "built": len(built), "missing": len(missing),
+            "built_list": built, "missing_list": missing}

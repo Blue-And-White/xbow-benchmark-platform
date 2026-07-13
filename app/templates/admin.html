@@ -3,8 +3,22 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">平台管理</h1>
 
+{# 镜像状态 #}
+<div class="bg-white rounded shadow p-5 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold text-lg">靶机镜像状态</h2>
+    <button hx-get="/admin/images" hx-target="#img-status" hx-swap="innerHTML"
+            class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded hover:bg-slate-600">刷新</button>
+  </div>
+  <div id="img-status">
+    <div hx-get="/admin/images" hx-trigger="load" hx-swap="innerHTML">
+      <p class="text-slate-400 text-sm">加载中…</p>
+    </div>
+  </div>
+</div>
+
 <div class="bg-white p-5 rounded shadow mb-6 max-w-xl">
-  <h2 class="font-semibold mb-3">平台设置</h2>
+  <h2 class="font-semibold text-lg mb-3">平台设置</h2>
   <form method="post" action="/admin" class="space-y-3">
     <label class="block text-sm">注册码
       <input name="registration_code" value="{{ cfg.registration_code }}" class="w-full border rounded px-3 py-2 mt-1">
@@ -12,12 +26,12 @@
     <label class="block text-sm">每用户最大并发题数
       <input type="number" name="max_concurrent" value="{{ cfg.max_concurrent_per_user }}" class="w-full border rounded px-3 py-2 mt-1">
     </label>
-    <label class="block text-sm">对外基础URL（用于生成靶机反代地址）
+    <label class="block text-sm">对外基础URL
       <input name="public_base_url" value="{{ cfg.public_base_url }}" class="w-full border rounded px-3 py-2 mt-1">
     </label>
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" name="allow_direct_port" {{ 'checked' if cfg.allow_direct_port else '' }}>
-      允许返回直连端口（127.0.0.1:port）
+      允许返回直连端口
     </label>
     <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">保存</button>
   </form>

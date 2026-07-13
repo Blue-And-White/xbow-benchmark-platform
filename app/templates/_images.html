@@ -1,0 +1,26 @@
+{# partial: image build status for admin page (HTMX-loaded) #}
+<div class="flex gap-4 mb-3 text-sm">
+  <span class="text-emerald-600 font-semibold">✅ 已构建: {{ built|length }}</span>
+  <span class="text-rose-500 font-semibold">❌ 未构建: {{ missing|length }}</span>
+  <span class="text-slate-400">总数: {{ total }}</span>
+</div>
+{% if missing %}
+<div class="mb-3">
+  <p class="text-xs text-slate-500 mb-2">未构建的题（需在服务器上用 prebuild 脚本构建）：</p>
+  <div class="flex flex-wrap gap-1">
+    {% for c in missing %}
+    <span class="text-xs px-2 py-1 rounded {{ 'bg-rose-100 text-rose-600' if c.supported else 'bg-slate-100 text-slate-400' }}">
+      {{ c.benchmark }}
+      {% if not c.supported %}(不支持){% endif %}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<p class="text-emerald-600 text-sm">🎉 全部 {{ total }} 个靶机镜像已就绪！</p>
+{% endif %}
+<div class="flex flex-wrap gap-1 mt-2">
+  {% for b in built %}
+  <span class="text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">{{ b }}</span>
+  {% endfor %}
+</div>

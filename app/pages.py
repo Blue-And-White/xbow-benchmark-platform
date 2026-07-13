@@ -325,6 +325,25 @@ async def admin_page(request: Request, user: User = Depends(current_user), db: A
     return templates.TemplateResponse(request, "admin.html", {"user": user, "cfg": cfg, "users": users})
 
 
+@router.get("/admin/images", response_class=HTMLResponse, include_in_schema=False)
+async def admin_images_partial(request: Request, user: User = Depends(current_user),
+                                db: AsyncSession = Depends(get_db)):
+    """HTMX partial: image build status for the 104 benchmarks."""
+    if user.role != "admin":
+        raise HTTPException(403, "admin only")
+    from . import docker_ops
+    challs = (await db.execute(select(Challenge).order_by(Challenge.benchmark))).scalars().all()
+    built, missing = [], []
+    for c in challs:
+        if c.service and await docker_ops.image_exists(c.benchmark, c.service):
+            built.append(c.benchmark)
+        else:
+            missing.append(c)
+    return templates.TemplateResponse(request, "_images.html", {
+        "built": built, "missing": missing, "total": len(challs),
+    })
+
+
 @router.post("/admin", include_in_schema=False)
 async def admin_update(request: Request, registration_code: str = Form(None), max_concurrent: int = Form(None),
                        public_base_url: str = Form(None), allow_direct_port: str = Form(None),
