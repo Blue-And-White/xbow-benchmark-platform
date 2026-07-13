@@ -7,7 +7,7 @@ import sys
 import httpx
 
 BASE = "http://127.0.0.1:8000"
-REG = "ROOTLAB@123"
+REG = "YOUR_REGISTRATION_CODE"
 OK = True
 
 

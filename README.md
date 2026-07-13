@@ -33,7 +33,7 @@ cp .env.example .env   # 按你的实际路径改 REPO_DIR / RUNS_DIR / ADMIN_PA
 
 # 4) 起平台
 docker compose --env-file .env up -d --build
-# -> http://localhost:8000  （默认 admin/<.env 里的 ADMIN_PASSWORD>，注册码 ROOTLAB@123）
+# -> http://localhost:8000  （默认 admin/<.env 里的 ADMIN_PASSWORD>，注册码 YOUR_REGISTRATION_CODE）
 ```
 
 > ⚠️ 题目镜像需先预构建（`scripts/prebuild.py`）。未构建的题点"启动"会提示 `image not built — run prebuild`。
@@ -45,7 +45,7 @@ docker compose --env-file .env up -d --build
 | `REPO_DIR` | xbow 仓库的**宿主绝对路径**（平台与 docker daemon 都要能访问） |
 | `RUNS_DIR` | 每次 attempt 的工作目录**宿主绝对路径**（flag 文件/compose 临时文件，daemon 要能读） |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | 启动时 seed 的管理员账号 |
-| `REGISTRATION_CODE` | 注册码（默认 `ROOTLAB@123`） |
+| `REGISTRATION_CODE` | 注册码（默认 `YOUR_REGISTRATION_CODE`） |
 | `PUBLIC_BASE_URL` | 对外基础 URL（生成靶机反代地址，如 `http://your-host:8000`） |
 | `CHALLENGE_HOST` | 平台进程访问靶机容器用：本机裸跑 `127.0.0.1`；平台在容器里 `host.docker.internal` |
 | `ALLOW_DIRECT_PORT` | 是否额外返回直连 `http://127.0.0.1:<port>` |

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     admin_password: str = ""                # if empty, a random one is generated & logged once
 
     # --- registration / limits ---
-    registration_code: str = "ROOTLAB@123"
+    registration_code: str = "YOUR_REGISTRATION_CODE"
     max_concurrent_per_user: int = 3
 
     # --- access ---

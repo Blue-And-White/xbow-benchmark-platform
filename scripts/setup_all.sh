@@ -119,7 +119,7 @@ export XBEN_ADMIN_USER=admin
 export XBEN_ADMIN_PASSWORD="$ADMIN_PW"
 export XBEN_PUBLIC_BASE_URL="http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo localhost):$PORT"
 export XBEN_CHALLENGE_HOST=127.0.0.1
-export XBEN_REGISTRATION_CODE=ROOTLAB@123
+export XBEN_REGISTRATION_CODE=YOUR_REGISTRATION_CODE
 export XBEN_SECRET_KEY="xbow-$(openssl rand -hex 16 2>/dev/null || echo dev-secret)"
 mkdir -p "$ROOT/runs" "$ROOT/data"
 
@@ -135,7 +135,7 @@ if curl -sS --max-time 5 "http://127.0.0.1:$PORT/health" | grep -q ok; then
   echo ""
   echo "  地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo localhost):$PORT"
   echo "  管理员: admin / $ADMIN_PW"
-  echo "  注册码: ROOTLAB@123"
+  echo "  注册码: YOUR_REGISTRATION_CODE"
   echo ""
   echo "  靶机构建进度: tail -f /root/prebuild.log"
   echo "  平台日志: tail -f /root/platform.log"
