@@ -3,12 +3,26 @@
 {% block content %}
 <div class="flex items-center justify-between mb-4">
   <h1 class="text-2xl font-bold">我的解题情况表</h1>
-  <form method="post" action="/sheets" class="flex gap-2">
-    <input name="name" placeholder="新表名（如：第1轮测试）" class="border rounded px-3 py-2">
-    <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">新建</button>
-  </form>
+  <button onclick="document.getElementById('new-sheet-modal').classList.remove('hidden')"
+          class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">+ 新建</button>
 </div>
 <p class="text-sm text-slate-500 mb-4">每个解题表对应一个独立的 104 题进度，各表有独立的 api-key（供程序/agent 调用 API）。</p>
+
+{# 新建看板弹窗 #}
+<div id="new-sheet-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-96">
+    <h2 class="text-lg font-bold mb-4">新建解题情况表</h2>
+    <form method="post" action="/sheets" class="space-y-3">
+      <input name="name" placeholder="表名（如：第1轮测试）" required
+             class="w-full border rounded px-3 py-2" autofocus>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="document.getElementById('new-sheet-modal').classList.add('hidden')"
+                class="px-4 py-2 rounded border hover:bg-slate-100">取消</button>
+        <button class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">创建</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {% if not sheets %}
   <div class="bg-white p-8 rounded shadow text-center text-slate-400">还没有解题表，新建一个开始吧。</div>

@@ -23,13 +23,24 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _count_in_progress(user_id: int, db: AsyncSession) -> int:
+async def _count_in_progress(sheet_id: int, db: AsyncSession) -> int:
+    """Count in_progress attempts for THIS SHEET (not per-user)."""
     stmt = (
         select(func.count(Attempt.id))
-        .join(SolveSheet, SolveSheet.id == Attempt.sheet_id)
-        .where(SolveSheet.user_id == user_id, Attempt.status == AttemptStatus.in_progress.value)
+        .where(Attempt.sheet_id == sheet_id, Attempt.status == AttemptStatus.in_progress.value)
     )
     return int((await db.execute(stmt)).scalar() or 0)
+
+
+async def _running_in_sheet(sheet_id: int, db: AsyncSession) -> list[dict]:
+    """Return list of in_progress challenges in this sheet (for error message)."""
+    stmt = (
+        select(Challenge.benchmark, Challenge.title)
+        .join(Attempt, Attempt.challenge_id == Challenge.id)
+        .where(Attempt.sheet_id == sheet_id, Attempt.status == AttemptStatus.in_progress.value)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [{"benchmark": r[0], "title": r[1]} for r in rows]
 
 
 def urls_for(cfg: PlatformConfig, att: Attempt) -> dict:
@@ -55,8 +66,10 @@ async def start(db: AsyncSession, sheet: SolveSheet, c: Challenge, cfg: Platform
         await db.refresh(att)
         return {"attempt_id": att.id, "benchmark": c.benchmark, "status": "in_progress", **urls_for(cfg, att)}
 
-    if await _count_in_progress(sheet.user_id, db) >= cfg.max_concurrent_per_user:
-        raise ServiceError(409, f"concurrency limit reached ({cfg.max_concurrent_per_user} running)")
+    if await _count_in_progress(sheet.id, db) >= cfg.max_concurrent_per_user:
+        running = await _running_in_sheet(sheet.id, db)
+        names = ", ".join(f"{r['benchmark']}" for r in running)
+        raise ServiceError(409, f"此看板已启动 {len(running)}/{cfg.max_concurrent_per_user} 个题目，正在作答中: {names}")
 
     # fixed mode (e.g. flag baked into a DB init .sql): use the baked flag as-is.
     # otherwise generate a fresh random flag (file/env/embedded are injected at start).
