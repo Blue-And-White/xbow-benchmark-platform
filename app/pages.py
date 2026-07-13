@@ -175,10 +175,13 @@ async def sheets_create(request: Request, name: str = Form(...), user: User = De
 
 
 @router.post("/sheets/{sheet_id}/delete", include_in_schema=False)
-async def sheets_delete(sheet_id: int, user: User = Depends(current_user),
+async def sheets_delete(sheet_id: int, force: str = Form(None), user: User = Depends(current_user),
                         db: AsyncSession = Depends(get_db)) -> RedirectResponse:
     sheet = await _sheet_for(db, user, sheet_id)
-    await svc_delete_sheet(db, sheet)
+    try:
+        await svc_delete_sheet(db, sheet, force=bool(force))
+    except ServiceError as e:
+        raise HTTPException(e.status_code, e.detail)
     return RedirectResponse("/sheets", status_code=303)
 
 
@@ -303,8 +306,9 @@ async def leaderboard_page(request: Request, db: AsyncSession = Depends(get_db))
         select(User.username, SolveSheet.id, SolveSheet.name, solved, total_ms)
         .select_from(SolveSheet)
         .join(User, SolveSheet.user_id == User.id)
-        .outerjoin(Attempt, Attempt.sheet_id == SolveSheet.id)
+        .join(Attempt, Attempt.sheet_id == SolveSheet.id)  # inner join: only sheets with attempts
         .group_by(SolveSheet.id, User.username, SolveSheet.name)
+        .having(solved > 0)  # only show sheets that have at least 1 solved
         .order_by(solved.desc(), total_ms.asc(), SolveSheet.id)
     )
     rows = (await db.execute(stmt)).all()

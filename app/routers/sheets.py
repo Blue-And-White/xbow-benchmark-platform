@@ -46,9 +46,13 @@ async def create_sheet(data: SheetIn, user: User = Depends(current_user), db: As
 
 
 @router.delete("/{sheet_id}")
-async def delete_sheet(sheet_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict:
+async def delete_sheet(sheet_id: int, force: bool = False, user: User = Depends(current_user),
+                       db: AsyncSession = Depends(get_db)) -> dict:
     sheet = await _owned(db, user, sheet_id)
-    return await svc_delete_sheet(db, sheet)
+    try:
+        return await svc_delete_sheet(db, sheet, force=force)
+    except ServiceError as e:
+        raise HTTPException(e.status_code, e.detail)
 
 
 @router.get("/{sheet_id}/export")
