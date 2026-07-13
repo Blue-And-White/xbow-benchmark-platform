@@ -64,15 +64,10 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[d
 
     for sname, svc in services.items():
         # pin to the PRE-BUILT image name ONLY for services that have a 'build'
-        # (common.mk builds <benchmark-lower>-<service>). Services that use a
-        # pre-existing image (e.g. `image: mysql:5.7`) should keep their image.
         build = svc.get("build")
         if build is not None:
             svc["image"] = f"{benchmark.lower()}-{sname}"
         # absolute build context (build can be a string "./mysql" or a dict)
-        if isinstance(build, str):
-        # absolute build context (build can be a string "./mysql" or a dict)
-        build = svc.get("build")
         if isinstance(build, str):
             build = {"context": build}
             svc["build"] = build
