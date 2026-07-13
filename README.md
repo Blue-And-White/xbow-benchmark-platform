@@ -1,98 +1,133 @@
 # xbow-benchmark-platform
 
-一个自托管的多用户 CTF 解题平台，托管 [xbow validation-benchmarks](https://github.com/xbow-engineering/validation-benchmarks) 的 104 个 web 安全靶机。
+自托管的多用户 CTF 解题平台，托管 [xbow validation-benchmarks](https://github.com/xbow-engineering/validation-benchmarks) 的 104 个 Web 安全靶机。
 
-- **动态 flag**：每次启动一道题注入一个随机 flag（不重新构建镜像），提交时和该次启动记录的 flag 比对，一致才算通过；通过后平台自动关闭并清理靶机容器，无需手动停。
-- **多用户 / 多解题表**：注册（需注册码）→ 登录 → 创建若干"解题情况表"，每张表一个独立 api-key + 独立的 104 题进度。
-- **完整 UI**（HTMX + Tailwind）：登录/解题表列表（带每表汇总进度）/104 看板（表格 + 筛选 + 统计面板 + 轮询）/排行榜/管理/API 文档。
-- **API-first**：拿一个 api-key 即可完成做题闭环（列题/启动/提交/停止），供人或 agent 调用。
+提供完整的题目管理、动态 flag 注入、自动判题、排行榜、解题数据导出等功能，支持人类用户通过 Web 界面操作，也支持 AI agent 通过 API 或 MCP 协议自动化做题。
 
-## 架构
+## 功能
 
-- 后端：FastAPI（async）+ SQLAlchemy 2.0（async）+ SQLite(WAL)。
-- 容器编排：平台 shell out 调 `docker compose`，每次启动用独立 compose project（`xben_<attempt_id>`）+ 临时工作目录，天然支持同题多用户并发。
-- 平台自身容器化（`Dockerfile` + `docker-compose.yml`），挂 docker.sock 编排靶机。
+- **104 个 Web 安全靶机**：涵盖 IDOR、SQL 注入、XSS、SSRF、文件上传、认证绕过等漏洞类型，难度分 L1/L2/L3。
+- **动态 flag**：每次启动一道题注入一个随机 flag，提交时与该次启动的 flag 比对，通过后自动关闭并清理靶机容器。
+- **多用户 / 多解题表**：注册（需注册码）后可创建多张解题表，每张表独立的 104 题进度和 api-key。
+- **Web 界面**：解题看板（状态/用时/筛选/统计）、排行榜、解题数据导出（JSON/CSV）、管理后台。
+- **API 接入**：通过 api-key 完成做题闭环（列题 → 启动 → 提交 → 关闭），供 AI agent 或自动化工具调用。
+- **MCP 协议**：内置 MCP Server，支持 Claude / opencode 等 MCP 客户端直接做题。
+- **安全设计**：API 不暴露题目考点（tags/title/description），关闭题目不重置计时（防作弊），生产环境关闭 Swagger。
 
-## 快速开始（本地 docker）
+## 快速开始
+
+### 一键部署
+
+```bash
+git clone https://github.com/Blue-And-White/xbow-benchmark-platform.git
+cd xbow-benchmark-platform
+bash scripts/setup_all.sh
+```
+
+脚本会自动完成：下载 xbow 仓库 → 生成 flag manifest → 构建 104 个靶机镜像 → 启动平台。
+
+可通过环境变量自定义配置：
+
+```bash
+XBOW_PORT=6888                        # 平台端口
+XBOW_ADMIN_PASSWORD=YOUR_PASSWORD     # 管理员密码
+XBOW_N_BUILD=104                      # 构建题数
+bash scripts/setup_all.sh
+```
+
+### 手动部署（Docker）
 
 ```bash
 git clone https://github.com/Blue-And-White/xbow-benchmark-platform.git
 cd xbow-benchmark-platform
 
-# 1) 把 xbow 仓库放到 validation-benchmarks/（或用 .env 指向已有路径）
+# 1. 下载 xbow 仓库到 validation-benchmarks/
 curl -fL -o vb.tar.gz \
   https://github.com/xbow-engineering/validation-benchmarks/archive/refs/heads/main.tar.gz
 tar xzf vb.tar.gz && mv validation-benchmarks-main validation-benchmarks && rm vb.tar.gz
 
-# 2) 生成 flag manifest（扫 104 个 Dockerfile，定每题 flag 落点）
-python3 scripts/gen_manifest.py        # -> flag_manifest.json (104/104)
+# 2. 生成 flag manifest
+python3 scripts/gen_manifest.py
 
-# 3) 配 .env（REPO_DIR / RUNS_DIR 必须是宿主绝对路径）
-cp .env.example .env   # 按你的实际路径改 REPO_DIR / RUNS_DIR / ADMIN_PASSWORD
-#    容器化运行时 CHALLENGE_HOST=host.docker.internal（平台在容器里时反代用）
+# 3. 配置环境
+cp .env.example .env   # 编辑 REPO_DIR / RUNS_DIR / 密码等
 
-# 4) 起平台
+# 4. 启动
 docker compose --env-file .env up -d --build
-# -> http://localhost:8000  （默认 admin/<.env 里的 ADMIN_PASSWORD>，注册码 YOUR_REGISTRATION_CODE）
 ```
 
-> ⚠️ 题目镜像需先预构建（`scripts/prebuild.py`）。未构建的题点"启动"会提示 `image not built — run prebuild`。
+访问 `http://localhost:8000`，默认管理员账号 `admin`（密码见 `.env` 中的 `ADMIN_PASSWORD`）。
 
-## 配置（.env）
+## 配置说明
 
-| 变量 | 说明 |
-|---|---|
-| `REPO_DIR` | xbow 仓库的**宿主绝对路径**（平台与 docker daemon 都要能访问） |
-| `RUNS_DIR` | 每次 attempt 的工作目录**宿主绝对路径**（flag 文件/compose 临时文件，daemon 要能读） |
-| `ADMIN_USER` / `ADMIN_PASSWORD` | 启动时 seed 的管理员账号 |
-| `REGISTRATION_CODE` | 注册码（默认 `YOUR_REGISTRATION_CODE`） |
-| `PUBLIC_BASE_URL` | 对外基础 URL（生成靶机反代地址，如 `http://your-host:8000`） |
-| `CHALLENGE_HOST` | 平台进程访问靶机容器用：本机裸跑 `127.0.0.1`；平台在容器里 `host.docker.internal` |
-| `ALLOW_DIRECT_PORT` | 是否额外返回直连 `http://127.0.0.1:<port>` |
+| 环境变量 | 说明 | 默认值 |
+|---|---|---|
+| `XBOW_PORT` | 平台监听端口 | 8000 |
+| `XBOW_ADMIN_USER` | 管理员用户名 | admin |
+| `XBOW_ADMIN_PASSWORD` | 管理员密码 | 启动时随机生成 |
+| `XBOW_REGISTRATION_CODE` | 用户注册码 | 需自行设置 |
+| `XBOW_PUBLIC_BASE_URL` | 对外访问地址（生成靶机反代 URL） | http://localhost:8000 |
+| `XBOW_CHALLENGE_HOST` | 平台访问靶机容器的地址（裸跑 127.0.0.1，容器内 host.docker.internal） | 127.0.0.1 |
+| `XBOW_MAX_CONCURRENT` | 每张解题表最大并发题数 | 3 |
+| `XBOW_REPO_DIR` | xbow 仓库路径 | ./validation-benchmarks |
 
-管理员可在「管理」页改：注册码 / 每用户最大并发题数（默认 3）/ 对外 URL / 直连开关。
+## API
 
-## API（api-key 做题闭环）
+每张解题表有独立的 api-key，用它完成做题闭环：
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | POST | `/api/auth/register` | 注册码 | 注册账号 |
-| POST | `/api/auth/login` | 账密 | 登录（会话，网页用） |
-| GET/POST | `/api/sheets` | 登录 | 列/建解题表（返回 api_key） |
-| DELETE | `/api/sheets/{id}` | 登录 | 删表（停跑着的容器 + 级联删记录） |
-| GET | `/api/challenges` | **X-API-Key** | 104 题 + 本表状态 |
-| POST | `/api/challenges/{benchmark}/start` | **X-API-Key** | 起靶机（随机 flag，返回 url） |
-| POST | `/api/challenges/{benchmark}/submit` | **X-API-Key** | 提交 flag；正确则自动关停清理容器 |
-| POST | `/api/challenges/{benchmark}/stop` | **X-API-Key** | 手动放弃（清 flag + 计时） |
-| GET | `/api/leaderboard` | 公开 | 排行榜（按 用户/看板 排名） |
+| POST | `/api/auth/login` | 账密 | 登录 |
+| GET/POST | `/api/sheets` | 登录 | 列出/创建解题表（返回 api-key） |
+| DELETE | `/api/sheets/{id}` | 登录 | 删除解题表 |
+| GET | `/api/challenges` | X-API-Key | 列出 104 题 + 状态（不暴露考点） |
+| POST | `/api/challenges/{benchmark}/start` | X-API-Key | 启动靶机，返回反代 URL |
+| POST | `/api/challenges/{benchmark}/submit` | X-API-Key | 提交 flag，正确则自动关闭容器 |
+| POST | `/api/challenges/{benchmark}/stop` | X-API-Key | 手动关闭靶机 |
+| GET | `/api/leaderboard` | 公开 | 排行榜 |
 
-网页端登录后导航有「API 文档」页（做题流程 + curl 示例）和 Swagger `/docs`。
+题目地址 = 反代 URL（`http://<平台地址>/c/<attempt_id>/`），公网可直接访问。
 
-## flag 与判题机制
+登录后在「API 文档」页面可查看完整的调用示例。
 
-- xbow 每个靶机的 flag 是**确定性**的：`FLAG{sha256(大写(benchmark名))}`，构建时（`common.mk`）通过 `--build-arg FLAG=` 注入。
-- 平台启动一道题时，按该题 flag 落点类型注入一个**随机** flag 覆盖（不重建镜像）：
-  - **file**（写到 /flag 等）：bind-mount 一个随机 flag 文件覆盖。
-  - **env**（`ENV FLAG`）：override 环境变量。
-  - **embedded**（sed 进源文件）：起容器后 `exec sed` 把确定性 flag 换成随机 flag。
-  - **fixed**（flag 烤进 mysql init.sql，运行时改不动）：用 build 时的确定性 flag，平台照样记录 + 比对。
-- 提交时比对本次启动记录的 flag；一致 → solved + 记录用时 + 自动 `docker compose down -v` 清容器。
+## MCP 接入
 
-`scripts/gen_manifest.py` 扫 104 个 Dockerfile 生成 `flag_manifest.json`（类型/路径/服务名/原始 flag），平台据此注入。当前：file=35 / embedded=51 / env=16 / fixed=2，104/104 支持。
+平台内置 MCP Server，AI agent 可通过 MCP 协议做题：
 
-## 预构建题目镜像
-
-```bash
-# 在能访问 docker 的机器上（远程建议放后台）
-python3 scripts/prebuild.py --repo ./validation-benchmarks --n 60 --log prebuild.log
+```json
+{
+  "mcpServers": {
+    "xbow-ctf": {
+      "command": "python",
+      "args": ["mcp/server.py"],
+      "env": {
+        "XBOW_PLATFORM_URL": "http://YOUR_SERVER_IP:6888",
+        "XBOW_API_KEY": "xben_YOUR_API_KEY"
+      }
+    }
+  }
+}
 ```
 
-脚本对每个 benchmark：找到声明 `ARG FLAG` 的 Dockerfile → 把宿主 CA bundle 拷进构建上下文 → 打补丁（CA + 国内 apt/apk/pip 源，规避国内构建卡死）→ `make build` → 还原 Dockerfile。逐题记录 ok/fail/skip，失败继续。国内/高核机器构建慢（vfs），放后台即可。
+提供 4 个 tools：`list_challenges`、`start_challenge`、`submit_flag`、`stop_challenge`。详见 [mcp/README.md](mcp/README.md)。
 
-## 已知坑（已固化进代码）
+## 系统要求
 
-1. GitHub 国内限速 → 用 gh-proxy 拉仓库；get.docker.com/download.docker.com 被墙 → docker 走阿里云镜像源装。
-2. 基础 slim 镜像无 ca-certificates + 国内 apt 源 HTTPS 重定向 → 构建期 COPY 宿主 CA bundle + 换腾讯 apt 源、阿里云 pip 源。
-3. 384 核机器上 `mysql:5.7.15` 等老镜像里老 Go 二进制 `procresize(384)` panic → 所有服务加 `GOMAXPROCS=8`。
-4. `docker compose up` 按项目名重找镜像会重建出空 FLAG 镜像 → 给每个服务 pin 固定 image 名（`<benchmark>-<service>`）。
-5. 部分靶机依赖过时（如 phantomjs/python2.7）构建不了 → 预构建脚本会记 fail，不影响其它题。
+- Docker 20+ 及 docker compose v2
+- Python 3.10+
+- 磁盘空间 ~30GB（104 个靶机镜像 + 仓库）
+- 内存 4GB+（单题靶机约 200-500MB）
+
+## 技术栈
+
+- 后端：FastAPI + SQLAlchemy 2.0 (async) + SQLite
+- 前端：Jinja2 + HTMX + Tailwind CSS
+- 容器：Docker + docker compose
+- MCP：stdio JSON-RPC
+
+## 许可证
+
+本项目采用 Apache License 2.0。
+
+靶机内容来自 [xbow validation-benchmarks](https://github.com/xbow-engineering/validation-benchmarks)（Apache License 2.0, Copyright 2024- XBOW USA Inc.），本平台不修改靶机代码，仅在构建时注入镜像源加速补丁和动态 flag。靶机包含故意留存的漏洞，仅供安全研究和学习使用。
