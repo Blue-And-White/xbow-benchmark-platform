@@ -112,6 +112,9 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
         # old composer packages may not declare PHP 8 compat; ignore platform reqs.
         patched = patched.replace("RUN composer install",
                                   "RUN composer install --ignore-platform-reqs")
+        # node:14 doesn't support ES2021 (||=) used by newer npm sub-dependencies.
+        # Upgrade to node:16 (same alpine base, supports ES2021).
+        patched = patched.replace("FROM node:14-alpine", "FROM node:16-alpine")
         df.write_text(patched)
         # Also patch ALL other Dockerfiles in this benchmark (e.g. haproxy, mitmproxy
         # that don't have ARG FLAG but still need apt source fixes for buster EOL).
