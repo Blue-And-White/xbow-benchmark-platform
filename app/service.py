@@ -193,3 +193,23 @@ async def stop(db: AsyncSession, sheet: SolveSheet, c: Challenge) -> dict:
     att.solve_duration_ms = None
     await db.commit()
     return {"stopped": True, "benchmark": c.benchmark}
+
+
+async def reset_attempt(db: AsyncSession, sheet: SolveSheet, c: Challenge) -> dict:
+    """Reset a challenge's solve record (user-initiated, e.g. to re-practice).
+    Deletes the attempt entirely so the challenge goes back to 'not_started'."""
+    att = (
+        await db.execute(select(Attempt).where(Attempt.sheet_id == sheet.id, Attempt.challenge_id == c.id))
+    ).scalar_one_or_none()
+    if att is None:
+        return {"reset": False, "benchmark": c.benchmark, "note": "no record to reset"}
+    # stop running container if any
+    if att.status == AttemptStatus.in_progress.value and att.compose_project:
+        wd = settings.runs_dir / f"{c.benchmark}_{att.id}"
+        try:
+            await docker_ops.stop_challenge(att.compose_project, wd)
+        except Exception:
+            pass
+    await db.delete(att)
+    await db.commit()
+    return {"reset": True, "benchmark": c.benchmark}

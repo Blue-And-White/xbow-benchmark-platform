@@ -20,7 +20,7 @@ from .db import get_db
 from .deps import current_user, get_config
 from .models import Attempt, Challenge, SolveSheet, User
 from .security import generate_api_key, hash_password, verify_password
-from .service import ServiceError, delete_sheet as svc_delete_sheet, start as svc_start, stop as svc_stop, submit as svc_submit
+from .service import ServiceError, delete_sheet as svc_delete_sheet, reset_attempt as svc_reset, start as svc_start, stop as svc_stop, submit as svc_submit
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter(tags=["pages"])
@@ -285,6 +285,15 @@ async def row_stop(request: Request, sheet_id: int, benchmark: str, user: User =
     sheet = await _sheet_for(db, user, sheet_id)
     c = await _chall(db, benchmark)
     await svc_stop(db, sheet, c)
+    return await _render_row(request, db, sheet, c, cfg)
+
+
+@router.post("/sheets/{sheet_id}/challenges/{benchmark}/reset", response_class=HTMLResponse)
+async def row_reset(request: Request, sheet_id: int, benchmark: str, user: User = Depends(current_user),
+                    db: AsyncSession = Depends(get_db), cfg=Depends(get_config)):
+    sheet = await _sheet_for(db, user, sheet_id)
+    c = await _chall(db, benchmark)
+    await svc_reset(db, sheet, c)
     return await _render_row(request, db, sheet, c, cfg)
 
 
