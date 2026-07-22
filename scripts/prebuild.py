@@ -132,7 +132,10 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
             other_ca = other_df.parent / "ca-certificates.crt"
             other_ca.write_bytes(ca_bytes)
             other_patches.append((other_df, other_orig, other_ca))
-            other_df.write_text(insert_patch(other_orig))
+            other_patched = insert_patch(other_orig)
+            # node:14 doesn't support ES2021 (||=) used by newer npm sub-dependencies.
+            other_patched = other_patched.replace("FROM node:14-alpine", "FROM node:16-alpine")
+            other_df.write_text(other_patched)
         # 'make clean' removes the stale .xben_build_done guard so make actually
         # rebuilds (the guard can outlive a wiped docker data dir -> false skip).
         p = subprocess.run(["bash", "-c", "make clean && make build"], cwd=bench_dir,
