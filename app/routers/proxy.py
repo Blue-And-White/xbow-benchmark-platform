@@ -39,7 +39,7 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
 
     # Lookup challenge for proxy_prefix (e.g. "/app" for XBEN-084 basePath)
     ch = (await db.execute(select(Challenge).where(Challenge.id == att.challenge_id))).scalar_one_or_none()
-    prefix = (ch.proxy_prefix or "").rstrip("/")  # "/app" or ""
+    prefix = (ch.proxy_prefix or "").strip("/")  # "app" or "" (no leading/trailing slashes)
 
     # Build target path: strip /c/{id}/ then add proxy_prefix
     # Normal:  /c/{id}/xxx  -> /xxx
