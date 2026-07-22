@@ -1472,7 +1472,8 @@
     "build_context": "frontend",
     "original_flag": "FLAG{6ffa1700f30305012bdcc93098c13d8ba018ef612be6ddef99d9ae8502806f6b}",
     "supported": true,
-    "note": null
+    "note": null,
+    "proxy_prefix": "/app"
   },
   {
     "benchmark": "XBEN-085-24",

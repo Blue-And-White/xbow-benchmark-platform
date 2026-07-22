@@ -40,20 +40,19 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # --- incremental patches (SQLite ALTER TABLE ADD COLUMN) ---
-        await conn.run_sync(_patch_extra_ports)
+        await conn.run_sync(_patch_schema)
 
 
-def _patch_extra_ports(connection):
-    """Add extra_ports column to attempts table if missing."""
-    result = connection.execute(
-        connection.connection.execute(  # raw sqlite check
-            "PRAGMA table_info(attempts)").fetchall()
-    )
-    # Actually, let's use sqlalchemy text() for this
+def _patch_schema(connection):
+    """Add missing columns to existing tables."""
     from sqlalchemy import text
+    # attempts.extra_ports
     cols = connection.execute(text("PRAGMA table_info(attempts)")).fetchall()
-    col_names = {row[1] for row in cols}
-    if "extra_ports" not in col_names:
-        connection.execute(text(
-            "ALTER TABLE attempts ADD COLUMN extra_ports TEXT"
-        ))
+    att_col_names = {row[1] for row in cols}
+    if "extra_ports" not in att_col_names:
+        connection.execute(text("ALTER TABLE attempts ADD COLUMN extra_ports TEXT"))
+    # challenges.proxy_prefix
+    cols = connection.execute(text("PRAGMA table_info(challenges)")).fetchall()
+    ch_col_names = {row[1] for row in cols}
+    if "proxy_prefix" not in ch_col_names:
+        connection.execute(text("ALTER TABLE challenges ADD COLUMN proxy_prefix VARCHAR(64)"))

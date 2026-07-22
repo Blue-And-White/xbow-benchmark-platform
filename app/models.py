@@ -80,6 +80,7 @@ class Challenge(Base):
     flag_path: Mapped[str | None] = mapped_column(String(256))
     original_flag: Mapped[str | None] = mapped_column(String(128))
     image_built: Mapped[bool] = mapped_column(Boolean, default=False)  # cached: image exists locally
+    proxy_prefix: Mapped[str | None] = mapped_column(String(64), nullable=True)  # e.g. "/app" for Next.js basePath
 
 
 class Attempt(Base):

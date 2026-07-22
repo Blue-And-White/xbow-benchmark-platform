@@ -142,6 +142,7 @@ async def _seed_challenges() -> None:
                 flag_type=e.get("flag_type"),
                 flag_path=e.get("flag_path"),
                 original_flag=e.get("original_flag"),
+                proxy_prefix=e.get("proxy_prefix"),
             ))
             added += 1
         if added:

@@ -2,6 +2,10 @@
 
 Public (the attempt_id in the URL is the access token). Only proxies attempts
 that are in_progress with a published host port.
+
+For challenges with proxy_prefix (e.g. XBEN-084 with basePath="/app"):
+  /c/{attempt_id}/xxx  ->  strip /c/{id}/  ->  add /app/  ->  /app/xxx
+This allows Next.js apps with basePath to work under path-prefix proxy.
 """
 from __future__ import annotations
 
@@ -13,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_db
-from ..models import Attempt, AttemptStatus
+from ..models import Attempt, AttemptStatus, Challenge
 
 router = APIRouter(tags=["proxy"])
 
@@ -30,7 +34,20 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     att = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
     if not att or att.status != AttemptStatus.in_progress.value or not att.host_port:
         raise HTTPException(404, "challenge not running")
-    target = f"http://{settings.challenge_host}:{att.host_port}/{path}"
+
+    # Lookup challenge for proxy_prefix (e.g. "/app" for XBEN-084 basePath)
+    ch = (await db.execute(select(Challenge).where(Challenge.id == att.challenge_id))).scalar_one_or_none()
+    prefix = (ch.proxy_prefix or "").rstrip("/")  # "/app" or ""
+
+    # Build target path: strip /c/{id}/ then add proxy_prefix
+    # Normal:  /c/{id}/xxx  -> /xxx
+    # Prefixed: /c/{id}/xxx -> /app/xxx
+    if prefix:
+        target_path = f"{prefix}/{path}"
+    else:
+        target_path = path
+
+    target = f"http://{settings.challenge_host}:{att.host_port}/{target_path}"
     if request.url.query:
         target += f"?{request.url.query}"
 
@@ -40,6 +57,9 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     headers["x-forwarded-host"] = request.headers.get("host", "")
     headers["x-forwarded-proto"] = "http"
     headers["x-forwarded-for"] = request.client.host if request.client else ""
+    # Tell the challenge app it's behind a path-prefix proxy
+    if prefix:
+        headers["x-forwarded-prefix"] = prefix
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False)
     req = client.build_request(request.method, target, headers=headers, content=body)
@@ -56,4 +76,28 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     # strip hop-by-hop + content-encoding (httpx already decoded the body)
     out_headers = {k: v for k, v in resp.headers.items()
                    if k.lower() not in _HOP and k.lower() != "content-encoding" and k.lower() != "content-length"}
+
+    # For prefixed challenges: rewrite redirect Location headers
+    # Next.js redirect("/adminpanel") -> Location: http://host:port/app/adminpanel
+    # We need to change it to: http://public_host:4444/c/{id}/adminpanel
+    # so the browser stays within our proxy.
+    if prefix and "location" in out_headers:
+        loc = out_headers["location"]
+        # Replace the internal container prefix with our proxy prefix
+        # e.g. http://localhost:32768/app/adminpanel -> http://public_host/c/{id}/adminpanel
+        base = (settings.public_base_url or "").rstrip("/")
+        proxy_base = f"{base}/c/{attempt_id}"
+        # Strip the internal host:port and prefix, replace with proxy path
+        # Pattern: http://anything:port/app/xxx -> http://public_host/c/{id}/xxx
+        import re
+        new_loc = re.sub(
+            r"https?://[^/]+/app(/.*)?$",
+            f"{proxy_base}\\1",
+            loc
+        )
+        # Also handle relative Location: /app/xxx -> /c/{id}/xxx
+        if loc.startswith("/app"):
+            new_loc = f"{proxy_base}{loc[4:]}"
+        out_headers["location"] = new_loc
+
     return StreamingResponse(gen(), status_code=resp.status_code, headers=out_headers)

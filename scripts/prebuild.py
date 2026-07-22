@@ -85,6 +85,11 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
     ctx = df.parent
     ca = ctx / "ca-certificates.crt"
     orig = df.read_text()
+
+    # ---- per-benchmark source-level patches (accessibility, no vuln change) ----
+    # These patch the source BEFORE build; the source is restored in the finally block.
+    xben084_patches = _patch_xben084(bench_dir)
+
     try:
         ca.write_bytes(ca_bytes)
         is_phantomjs = "phantomjs" in orig.lower()
@@ -153,8 +158,72 @@ def build_one(bench_dir: Path, ca_bytes: bytes, timeout: int = 3600) -> str:
                 other_df.write_text(other_orig)
                 if other_ca.exists():
                     other_ca.unlink()
+            # restore per-benchmark source patches (e.g. XBEN-084 next.config.mjs)
+            for patched_file, patched_orig in xben084_patches:
+                patched_file.write_text(patched_orig)
         except Exception:
             pass
+
+
+def _patch_xben084(bench_dir: Path) -> list[tuple[Path, str]]:
+    """Patch XBEN-084 frontend to support basePath="/app/" for path-prefix proxy.
+
+    Next.js without basePath generates all absolute-path links/routes/API calls
+    starting from `/`, which completely break under `/c/{attempt_id}/` prefix
+    reverse proxy. Adding basePath="/app/" makes Next.js prepend `/app/` to
+    all generated URLs. The platform proxy then maps:
+      /c/{attempt_id}/xxx  ->  strip /c/{id}/  ->  add /app/  ->  /app/xxx
+
+    This is a purely routing/accessibility change — it does NOT alter the
+    challenge's vulnerability (S3 bucket disclosure → credential extraction
+    → admin panel flag retrieval).
+
+    Returns list of (file_path, original_content) for restoration after build.
+    """
+    bm = "XBEN-084-24"
+    if bench_dir.name != bm:
+        return []
+
+    frontend = bench_dir / "frontend"
+    originals = []
+
+    # 1. Patch next.config.mjs — add basePath: "/app/"
+    ncf = frontend / "next.config.mjs"
+    if ncf.exists():
+        orig = ncf.read_text()
+        originals.append((ncf, orig))
+        txt = orig.replace(
+            "const nextConfig = {\n",
+            "const nextConfig = {\n    basePath: \"/app\",\n",
+        )
+        ncf.write_text(txt)
+
+    # 2. Patch LoginForm.tsx — "/api/auth" -> "/app/api/auth"
+    lf = frontend / "app" / "components" / "LoginForm.tsx"
+    if lf.exists():
+        orig = lf.read_text()
+        originals.append((lf, orig))
+        txt = orig.replace('"/api/auth"', '"/app/api/auth"')
+        lf.write_text(txt)
+
+    # 3. Patch S3Image.tsx — "/api/s3" -> "/app/api/s3"
+    si = frontend / "app" / "components" / "S3Image.tsx"
+    if si.exists():
+        orig = si.read_text()
+        originals.append((si, orig))
+        txt = orig.replace('"/api/s3"', '"/app/api/s3"')
+        si.write_text(txt)
+
+    # 4. Patch sessionManager.ts — server-side internal call needs basePath prefix
+    # http://localhost:3000/api/user -> http://localhost:3000/app/api/user
+    sm = frontend / "app" / "actions" / "sessionManager.ts"
+    if sm.exists():
+        orig = sm.read_text()
+        originals.append((sm, orig))
+        txt = orig.replace("http://localhost:3000/api/user", "http://localhost:3000/app/api/user")
+        sm.write_text(txt)
+
+    return originals
 
 
 def main() -> int:
