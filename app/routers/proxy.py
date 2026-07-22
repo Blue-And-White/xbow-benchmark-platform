@@ -9,6 +9,8 @@ This allows Next.js apps with basePath to work under path-prefix proxy.
 """
 from __future__ import annotations
 
+import re as _re
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -42,12 +44,13 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     # Build target path: strip /c/{id}/ then add proxy_prefix
     # Normal:  /c/{id}/xxx  -> /xxx
     # Prefixed: /c/{id}/xxx -> /app/xxx
+    # Prefixed root: /c/{id}/  -> /app  (not /app/ to avoid double-slash)
     if prefix:
-        target_path = f"{prefix}/{path}"
+        target_path = f"/{prefix}/{path}" if path else f"/{prefix}"
     else:
-        target_path = path
+        target_path = f"/{path}" if path else "/"
 
-    target = f"http://{settings.challenge_host}:{att.host_port}/{target_path}"
+    target = f"http://{settings.challenge_host}:{att.host_port}{target_path}"
     if request.url.query:
         target += f"?{request.url.query}"
 
@@ -77,27 +80,25 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     out_headers = {k: v for k, v in resp.headers.items()
                    if k.lower() not in _HOP and k.lower() != "content-encoding" and k.lower() != "content-length"}
 
-    # For prefixed challenges: rewrite redirect Location headers
-    # Next.js redirect("/adminpanel") -> Location: http://host:port/app/adminpanel
-    # We need to change it to: http://public_host:4444/c/{id}/adminpanel
-    # so the browser stays within our proxy.
+    # For prefixed challenges: rewrite redirect Location headers.
+    # Next.js with basePath="/app" sends Location like:
+    #   - "/app/login" -> rewrite to "/c/{id}/login" (strip /app prefix)
+    #   - "http://localhost:33177/app/login" -> rewrite to "/c/{id}/login"
+    # This keeps the browser within our proxy instead of going to the
+    # internal container URL.
     if prefix and "location" in out_headers:
         loc = out_headers["location"]
-        # Replace the internal container prefix with our proxy prefix
-        # e.g. http://localhost:32768/app/adminpanel -> http://public_host/c/{id}/adminpanel
-        base = (settings.public_base_url or "").rstrip("/")
-        proxy_base = f"{base}/c/{attempt_id}"
-        # Strip the internal host:port and prefix, replace with proxy path
-        # Pattern: http://anything:port/app/xxx -> http://public_host/c/{id}/xxx
-        import re
-        new_loc = re.sub(
-            r"https?://[^/]+/app(/.*)?$",
-            f"{proxy_base}\\1",
-            loc
+        proxy_path = f"/c/{attempt_id}"
+        # Absolute URL: http://host:port/app/xxx -> /c/{id}/xxx
+        new_loc = _re.sub(
+            rf"https?://[^/]+/{prefix}(/.*|$)",
+            rf"{proxy_path}\1",
+            loc,
         )
-        # Also handle relative Location: /app/xxx -> /c/{id}/xxx
-        if loc.startswith("/app"):
-            new_loc = f"{proxy_base}{loc[4:]}"
+        # Relative URL: /app/xxx -> /c/{id}/xxx
+        if loc.startswith(f"/{prefix}") or loc.startswith(f"/{prefix}/"):
+            rest = loc[len(prefix) + 1:]  # strip "/app" prefix, keep rest
+            new_loc = f"{proxy_path}{rest}"
         out_headers["location"] = new_loc
 
     return StreamingResponse(gen(), status_code=resp.status_code, headers=out_headers)
