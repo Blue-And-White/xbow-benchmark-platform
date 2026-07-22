@@ -45,6 +45,16 @@ def _norm_expose(val):
     return s.strip("'\"")
 
 
+def _fix_expose(e):
+    """Fix invalid expose format: Docker Compose v2 rejects 'host:container' in expose.
+    '8333:8333' -> '8333'  (expose only accepts container port)
+    '8333'      -> '8333'  (correct format, no change)
+    """
+    if isinstance(e, str) and ":" in e:
+        return e.split(":")[-1]
+    return e
+
+
 def _randomize_port(p):
     """Convert fixed host:container port mappings to container-only format.
     '5003:5003' -> '5003'  (Docker assigns random host port, avoids conflicts)
@@ -117,6 +127,10 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[d
         # multiple challenges concurrently (e.g. 7 challenges all on port 5003)
         ports = svc.get("ports") or []
         svc["ports"] = [_randomize_port(p) for p in ports]
+        # fix invalid expose format: Docker Compose v2 rejects "host:container"
+        # in expose (it only accepts container port); strip any host prefix.
+        exp = svc.get("expose") or []
+        svc["expose"] = [_fix_expose(e) for e in exp]
 
     # flag injection on the flag service
     if flag_service and flag_service in services and flag_type:
