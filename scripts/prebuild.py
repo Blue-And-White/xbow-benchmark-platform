@@ -226,6 +226,19 @@ def _patch_xben084(bench_dir: Path) -> list[tuple[Path, str]]:
         txt = orig.replace("http://localhost:3000/api/user", "http://localhost:3000/app/api/user")
         sm.write_text(txt)
 
+    # 5. Patch docker-compose.yml healthchecks — with basePath="/app",
+    #    curl http://localhost:3000 (root) returns 404; need /app prefix.
+    #    Also fix nginx healthcheck since it proxies to the prefixed frontend.
+    #    s3 healthcheck stays unchanged (internal, no basePath).
+    #    NOT added to originals so this patch persists across rebuilds (idempotent).
+    dcf = bench_dir / "docker-compose.yml"
+    if dcf.exists():
+        txt = dcf.read_text()
+        # Idempotent: only replace if /app not already present
+        txt = re.sub(r'http://localhost:3000(?!/app)', 'http://localhost:3000/app', txt)
+        txt = re.sub(r'http://localhost:80(?!/app)', 'http://localhost:80/app', txt)
+        dcf.write_text(txt)
+
     return originals
 
 
