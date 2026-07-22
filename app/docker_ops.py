@@ -29,7 +29,8 @@ from .manifest import get as get_manifest
 @dataclass
 class ChallengeInstance:
     project: str
-    host_port: int | None
+    host_port: int | None          # primary (HTTP) host port for proxy
+    extra_ports: dict | None       # {container_port: host_port} for non-HTTP ports (e.g. SSH)
     work_dir: Path
 
 
@@ -171,8 +172,8 @@ async def start_challenge(benchmark: str, attempt_id: int, dynamic_flag: str) ->
         if flag_service:
             await _inject_embedded(base, flag_service, manifest["original_flag"], dynamic_flag, manifest["flag_path"])
 
-    port = await _get_host_port(base, cfg, flag_service)
-    return ChallengeInstance(project=project, host_port=port, work_dir=work_dir)
+    port, extra_ports = await _get_host_port(base, cfg, flag_service)
+    return ChallengeInstance(project=project, host_port=port, extra_ports=extra_ports, work_dir=work_dir)
 
 
 async def _inject_embedded(base, service, original, dynamic, flag_path):
@@ -186,28 +187,83 @@ async def _inject_embedded(base, service, original, dynamic, flag_path):
         raise RuntimeError(f"embedded flag sed failed: {err}")
 
 
-async def _get_host_port(base, cfg, flag_service) -> int | None:
-    svc = (cfg.get("services") or {}).get(flag_service) or {}
-    ports = svc.get("ports") or []
+async def _get_host_port(base, cfg, flag_service) -> tuple[int | None, dict | None]:
+    """Return (primary_http_port, extra_ports_dict) for the challenge.
+
+    The proxy must route to a service that has *published* ports to the host.
+    The flag_service may be an internal-only service (e.g. XBEN-020's
+    internal-service) — in that case we find the user-facing service that
+    actually publishes a port.
+
+    extra_ports maps container_port -> host_port for non-primary ports
+    (e.g. SSH port 22 for XBEN-042).
+    """
+    services = cfg.get("services") or {}
+
+    # --- find the gateway service (the one with published ports for proxy) ---
+    gateway_svc = flag_service
+    gateway_ports = (services.get(gateway_svc) or {}).get("ports") or []
+    if not gateway_ports:
+        # flag_service has no published ports — scan for the service that does
+        for sname, svc in services.items():
+            p = svc.get("ports") or []
+            if p:
+                gateway_svc = sname
+                break
+        gateway_ports = (services.get(gateway_svc) or {}).get("ports") or []
+
+    # --- determine the primary HTTP container port from published ports ---
     target = None
-    for p in ports:
-        if isinstance(p, str) and ":" in p:
-            target = p.split(":")[-1].split("/")[0]
-        elif isinstance(p, dict):
-            target = str(p.get("target") or p.get("published") or "")
-        elif p:
-            target = str(p).split("/")[0]
-        if target:
+    all_container_ports = []       # (svc_name, container_port_str)
+    for sname, svc in services.items():
+        ports = svc.get("ports") or []
+        for p in ports:
+            if isinstance(p, str) and ":" in p:
+                cp = p.split(":")[-1].split("/")[0]
+            elif isinstance(p, dict):
+                cp = str(p.get("target") or p.get("published") or "")
+            elif p:
+                cp = str(p).split("/")[0]
+            else:
+                continue
+            all_container_ports.append((sname, cp))
+
+    # pick the primary port: prefer common HTTP ports (80, 5000, 8080, 3000)
+    http_like = {"80", "5000", "8080", "3000", "8000", "443"}
+    for sname, cp in all_container_ports:
+        if sname == gateway_svc and cp in http_like:
+            target = cp
             break
-    # ask compose for the actual mapped host port
-    cmd = base + (["port", flag_service, target] if target else ["port", flag_service])
-    rc, out, err = await _run(cmd, timeout=30)
-    if rc == 0 and out.strip():
-        # "0.0.0.0:32768" or "[::]:32768"
-        m = re.search(r":(\d+)\s*$", out.strip())
-        if m:
-            return int(m.group(1))
-    return None
+    if target is None and all_container_ports:
+        # fallback: first published port of gateway service, or first overall
+        for sname, cp in all_container_ports:
+            if sname == gateway_svc:
+                target = cp
+                break
+        if target is None:
+            target = all_container_ports[0][1]
+
+    # --- ask compose for the actual mapped host port (primary) ---
+    primary_port = None
+    if target and gateway_svc:
+        rc, out, err = await _run(base + ["port", gateway_svc, target], timeout=30)
+        if rc == 0 and out.strip():
+            m = re.search(r":(\d+)\s*$", out.strip())
+            if m:
+                primary_port = int(m.group(1))
+
+    # --- collect extra (non-primary) port mappings ---
+    extra = {}
+    for sname, cp in all_container_ports:
+        if cp == target and sname == gateway_svc:
+            continue        # skip the primary HTTP port
+        rc, out, _ = await _run(base + ["port", sname, cp], timeout=30)
+        if rc == 0 and out.strip():
+            m = re.search(r":(\d+)\s*$", out.strip())
+            if m:
+                extra[int(cp)] = int(m.group(1))
+
+    return primary_port, extra
 
 
 async def stop_challenge(project: str, work_dir: Path) -> None:

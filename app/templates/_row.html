@@ -72,6 +72,14 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-0L10 14"/></svg>
           查看靶机
         </a>
+        {% if att and att.extra_ports %}
+          {% set ep = att.extra_ports_json %}
+          {% for cport, hport in ep.items() %}
+            {% if cport == 22 %}
+              <span class="text-xs text-amber-600 font-medium ml-1" title="SSH 端口映射">SSH:{{ hport }}</span>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
         <form hx-post="/sheets/{{ sheet.id }}/challenges/{{ c.benchmark }}/stop"
               hx-target="closest tr" hx-swap="outerHTML" class="inline">
           <button class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"

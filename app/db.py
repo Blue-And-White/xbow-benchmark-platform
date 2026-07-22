@@ -35,7 +35,25 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Create tables."""
+    """Create tables and apply pending schema patches."""
     from . import models  # noqa: F401  (ensure mappers loaded)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # --- incremental patches (SQLite ALTER TABLE ADD COLUMN) ---
+        await conn.run_sync(_patch_extra_ports)
+
+
+def _patch_extra_ports(connection):
+    """Add extra_ports column to attempts table if missing."""
+    result = connection.execute(
+        connection.connection.execute(  # raw sqlite check
+            "PRAGMA table_info(attempts)").fetchall()
+    )
+    # Actually, let's use sqlalchemy text() for this
+    from sqlalchemy import text
+    cols = connection.execute(text("PRAGMA table_info(attempts)")).fetchall()
+    col_names = {row[1] for row in cols}
+    if "extra_ports" not in col_names:
+        connection.execute(text(
+            "ALTER TABLE attempts ADD COLUMN extra_ports TEXT"
+        ))

@@ -94,8 +94,20 @@ class Attempt(Base):
     dynamic_flag: Mapped[str | None] = mapped_column(String(128), nullable=True)
     compose_project: Mapped[str | None] = mapped_column(String(128), nullable=True)
     host_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    extra_ports: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: {container_port: host_port}
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     solved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     solve_duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    @property
+    def extra_ports_json(self) -> dict:
+        """Parse the JSON extra_ports field into a dict {container_port: host_port}."""
+        import json
+        if not self.extra_ports:
+            return {}
+        try:
+            return json.loads(self.extra_ports)
+        except Exception:
+            return {}
 
     sheet: Mapped["SolveSheet"] = relationship(back_populates="attempts")

@@ -1,6 +1,7 @@
 """Shared challenge lifecycle logic (used by both the API router and UI pages)."""
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,6 +49,22 @@ def urls_for(cfg: PlatformConfig, att: Attempt) -> dict:
     out = {"url": f"{base}/c/{att.id}/"}
     if cfg.allow_direct_port and att.host_port:
         out["direct_url"] = f"http://127.0.0.1:{att.host_port}/"
+    return out
+
+
+def _extra_urls(cfg: PlatformConfig, att: Attempt) -> dict:
+    """Include non-primary ports (e.g. SSH) in the start response."""
+    import json as _json
+    out: dict = {}
+    if att.extra_ports:
+        try:
+            ep = _json.loads(att.extra_ports)
+        except Exception:
+            ep = {}
+        host = cfg.public_base_url.rstrip("/").split("//", 1)[-1].split("/", 1)[0] or "127.0.0.1"
+        for cport, hport in ep.items():
+            label = "ssh" if int(cport) == 22 else f"port_{cport}"
+            out[f"direct_{label}_url"] = f"ssh://{host}:{hport}" if int(cport) == 22 else f"http://{host}:{hport}/"
     return out
 
 
@@ -99,9 +116,11 @@ async def start(db: AsyncSession, sheet: SolveSheet, c: Challenge, cfg: Platform
 
     att.compose_project = inst.project
     att.host_port = inst.host_port
+    att.extra_ports = json.dumps(inst.extra_ports) if inst.extra_ports else None
     await db.commit()
     await db.refresh(att)
-    return {"attempt_id": att.id, "benchmark": c.benchmark, "status": "in_progress", **urls_for(cfg, att)}
+    return {"attempt_id": att.id, "benchmark": c.benchmark, "status": "in_progress",
+            **urls_for(cfg, att), **_extra_urls(cfg, att)}
 
 
 async def submit(db: AsyncSession, sheet: SolveSheet, c: Challenge, flag: str) -> dict:
@@ -131,6 +150,7 @@ async def submit(db: AsyncSession, sheet: SolveSheet, c: Challenge, flag: str) -
             pass
     att.compose_project = None
     att.host_port = None
+    att.extra_ports = None
     att.dynamic_flag = None
     await db.commit()
     return {"correct": True, "benchmark": c.benchmark, "solve_duration_ms": att.solve_duration_ms}
@@ -187,8 +207,9 @@ async def stop(db: AsyncSession, sheet: SolveSheet, c: Challenge) -> dict:
     att.status = AttemptStatus.abandoned.value
     att.compose_project = None
     att.host_port = None
-    att.dynamic_flag = None
+    att.extra_ports = None
     # KEEP started_at — record of attempt preserved (prevent "reset = cheat")
+    att.dynamic_flag = None
     att.solved_at = None
     att.solve_duration_ms = None
     await db.commit()
