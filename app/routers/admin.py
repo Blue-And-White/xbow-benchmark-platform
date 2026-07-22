@@ -1,5 +1,8 @@
-"""Admin: platform config + user management + image status."""
+"""Admin: platform config + user management + image status + self-deploy."""
 from __future__ import annotations
+
+import asyncio
+import subprocess
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -7,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import docker_ops
+from ..config import settings
 from ..db import get_db
 from ..deps import current_user, get_config, require_admin
 from ..models import PlatformConfig, SolveSheet, User, Challenge
@@ -72,3 +76,39 @@ async def image_status(admin: User = Depends(require_admin), db: AsyncSession = 
             missing.append({"benchmark": c.benchmark, "level": c.level, "supported": c.supported, "service": c.service})
     return {"total": len(challs), "built": len(built), "missing": len(missing),
             "built_list": built, "missing_list": missing}
+
+
+@router.post("/deploy")
+async def self_deploy(admin: User = Depends(require_admin)) -> dict:
+    """Pull latest code from git and restart the platform process.
+    Only works when the platform runs directly on the host (not in a container).
+    After restart, the platform comes back up with the new code + DB migrations."""
+    import os
+    import signal
+    import logging
+    log = logging.getLogger("xben")
+
+    # Find our own process (uvicorn) and its PID
+    pid = os.getpid()
+
+    # git pull in background thread
+    def _pull():
+        repo_dir = str(settings.repo_dir.parent)  # the platform repo root
+        r = subprocess.run(["git", "pull", "origin", "main"],
+                           cwd=repo_dir, capture_output=True, text=True, timeout=120)
+        return r.returncode, r.stdout, r.stderr
+
+    rc, out, err = await asyncio.to_thread(_pull)
+    log.info("git pull: rc=%d stdout=%s stderr=%s", rc, out[:200], err[:200])
+
+    if rc != 0:
+        return {"ok": False, "error": f"git pull failed: {err[:300]}"}
+
+    # Schedule our own restart (kill process → systemd/supervisor relaunches us)
+    # Use SIGHUP for graceful restart if under supervisor, otherwise SIGTERM
+    async def _restart():
+        await asyncio.sleep(2)  # give time for HTTP response to reach client
+        os.kill(pid, signal.SIGTERM)
+
+    asyncio.create_task(_restart())
+    return {"ok": True, "pid": pid, "git_pull_output": out[:200], "note": "platform will restart in ~2s"}
