@@ -150,29 +150,34 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path, proxy_pref
         # embedded: handled post-up via exec sed
 
     # If the challenge has a proxy_prefix (e.g. XBEN-084 basePath="/app"),
-    # healthchecks that curl localhost:<port> will fail because the app
-    # only responds on the prefixed path. Prepend the prefix to all
-    # healthcheck URLs that reference localhost.
+    # the gateway service's healthcheck may fail because the app only
+    # responds on the prefixed path. Only fix healthchecks for the gateway
+    # service — internal services (s3, db) don't have basePath.
     if proxy_prefix:
         prefix = proxy_prefix.strip("/")
-        for svc in services.values():
-            hc = svc.get("healthcheck")
-            if not hc or not isinstance(hc, dict):
-                continue
-            test = hc.get("test")
-            if isinstance(test, list) and len(test) >= 2:
-                # e.g. ["CMD", "curl", "--fail", "http://localhost:3000"]
-                # Find the URL element and insert prefix into the path part.
-                for i, elem in enumerate(test):
-                    if isinstance(elem, str) and elem.startswith("http://localhost:"):
-                        # http://localhost:3000 -> http://localhost:3000/app
-                        # http://localhost:3000/api -> http://localhost:3000/app/api
-                        host_end = elem.find("/", elem.find("//") + 2)
-                        if host_end == -1:
-                            test[i] = f"{elem}/{prefix}"
-                        else:
-                            test[i] = f"{elem[:host_end]}/{prefix}{elem[host_end:]}"
-                hc["test"] = test
+        # find the gateway service (the one with published ports)
+        gateway_svc = flag_service
+        gateway_ports = (services.get(gateway_svc) or {}).get("ports") or []
+        if not gateway_ports:
+            for sname, svc in services.items():
+                p = svc.get("ports") or []
+                if p:
+                    gateway_svc = sname
+                    break
+        gw = services.get(gateway_svc)
+        if gw:
+            hc = gw.get("healthcheck")
+            if hc and isinstance(hc, dict):
+                test = hc.get("test")
+                if isinstance(test, list) and len(test) >= 2:
+                    for i, elem in enumerate(test):
+                        if isinstance(elem, str) and elem.startswith("http://localhost:"):
+                            # http://localhost:80 -> http://localhost:80/app
+                            host_end = elem.find("/", elem.find("//") + 2)
+                            if host_end == -1:
+                                test[i] = f"{elem}/{prefix}"
+                            else:
+                                test[i] = f"{elem[:host_end]}/{prefix}{elem[host_end:]}"
 
     (work_dir / "compose.yml").write_text(yaml.safe_dump(cfg, sort_keys=False))
     return cfg, flag_service
