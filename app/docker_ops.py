@@ -162,14 +162,16 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path, proxy_pref
             test = hc.get("test")
             if isinstance(test, list) and len(test) >= 2:
                 # e.g. ["CMD", "curl", "--fail", "http://localhost:3000"]
-                # Find the URL element and prepend prefix to the path
+                # Find the URL element and insert prefix into the path part.
                 for i, elem in enumerate(test):
                     if isinstance(elem, str) and elem.startswith("http://localhost:"):
                         # http://localhost:3000 -> http://localhost:3000/app
-                        parts = elem.split("/", 3)  # ['http:', '', 'localhost:3000', '']
-                        if len(parts) >= 3:
-                            path = parts[3] if len(parts) > 3 else ""
-                            test[i] = f"http://localhost:{parts[2]}/{prefix}/{path}".rstrip("/")
+                        # http://localhost:3000/api -> http://localhost:3000/app/api
+                        host_end = elem.find("/", elem.find("//") + 2)
+                        if host_end == -1:
+                            test[i] = f"{elem}/{prefix}"
+                        else:
+                            test[i] = f"{elem[:host_end]}/{prefix}{elem[host_end:]}"
                 hc["test"] = test
 
     (work_dir / "compose.yml").write_text(yaml.safe_dump(cfg, sort_keys=False))
