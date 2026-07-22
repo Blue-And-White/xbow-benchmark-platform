@@ -45,6 +45,33 @@ def _norm_expose(val):
     return s.strip("'\"")
 
 
+def _randomize_port(p):
+    """Convert fixed host:container port mappings to container-only format.
+    '5003:5003' -> '5003'  (Docker assigns random host port, avoids conflicts)
+    '5003'      -> '5003'  (already ephemeral, no change)
+    '8080:80'   -> '80'    (keep only container port)
+    dict form   -> dict with published removed (Docker picks random)
+    int         -> int     (already ephemeral)
+    """
+    if isinstance(p, int):
+        return p
+    if isinstance(p, str):
+        s = p.strip()
+        if ":" in s:
+            # "HOST:CONTAINER" or "HOST:CONTAINER/PROTO" — keep container part only
+            parts = s.split(":")
+            container = parts[-1]  # e.g. "5003" or "5003/tcp"
+            return container
+        # already just a container port (ephemeral), keep as-is
+        return s
+    if isinstance(p, dict):
+        # Remove fixed 'published' to let Docker assign randomly
+        # Keep 'target' (container port) and other metadata
+        out = {k: v for k, v in p.items() if k != "published"}
+        return out
+    return p
+
+
 def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[dict, str | None]:
     """Return (merged compose dict, flag_service_name) written to work_dir/compose.yml."""
     bench_dir = settings.benchmarks_dir / benchmark
@@ -86,6 +113,10 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[d
         elif isinstance(env, list):
             if not any(str(x).startswith("GOMAXPROCS=") for x in env):
                 env.append(f"GOMAXPROCS={gmp}")
+        # randomize fixed host port mappings -> avoid conflicts when running
+        # multiple challenges concurrently (e.g. 7 challenges all on port 5003)
+        ports = svc.get("ports") or []
+        svc["ports"] = [_randomize_port(p) for p in ports]
 
     # flag injection on the flag service
     if flag_service and flag_service in services and flag_type:
