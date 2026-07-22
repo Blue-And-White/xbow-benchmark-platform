@@ -44,11 +44,13 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     # Build target path: strip /c/{id}/ then add proxy_prefix
     # Normal:  /c/{id}/xxx  -> /xxx
     # Prefixed: /c/{id}/xxx -> /app/xxx
-    # Prefixed root: /c/{id}/  -> /app  (not /app/ to avoid double-slash)
+    # Prefixed root: /c/{id}/  -> /app  (not /app/ to avoid trailing-slash redirect)
+    # Strip trailing slash from path to avoid Next.js 308 redirects.
+    clean_path = path.rstrip("/")
     if prefix:
-        target_path = f"/{prefix}/{path}" if path else f"/{prefix}"
+        target_path = f"/{prefix}/{clean_path}" if clean_path else f"/{prefix}"
     else:
-        target_path = f"/{path}" if path else "/"
+        target_path = f"/{clean_path}" if clean_path else "/"
 
     target = f"http://{settings.challenge_host}:{att.host_port}{target_path}"
     if request.url.query:
