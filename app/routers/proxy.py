@@ -86,8 +86,10 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
     #   - "http://localhost:33177/app/login" -> rewrite to "/c/{id}/login"
     # This keeps the browser within our proxy instead of going to the
     # internal container URL.
-    if prefix and "location" in out_headers:
-        loc = out_headers["location"]
+    # NOTE: HTTP headers may be "Location" or "location" (case varies).
+    loc_key = next((k for k in out_headers if k.lower() == "location"), None)
+    if prefix and loc_key:
+        loc = out_headers[loc_key]
         proxy_path = f"/c/{attempt_id}"
         # Absolute URL: http://host:port/app/xxx -> /c/{id}/xxx
         new_loc = _re.sub(
@@ -99,6 +101,6 @@ async def proxy(attempt_id: int, path: str, request: Request, db: AsyncSession =
         if loc.startswith(f"/{prefix}") or loc.startswith(f"/{prefix}/"):
             rest = loc[len(prefix) + 1:]  # strip "/app" prefix, keep rest
             new_loc = f"{proxy_path}{rest}"
-        out_headers["location"] = new_loc
+        out_headers[loc_key] = new_loc
 
     return StreamingResponse(gen(), status_code=resp.status_code, headers=out_headers)
