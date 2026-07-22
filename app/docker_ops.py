@@ -82,7 +82,7 @@ def _randomize_port(p):
     return p
 
 
-def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[dict, str | None]:
+def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path, proxy_prefix: str = "") -> tuple[dict, str | None]:
     """Return (merged compose dict, flag_service_name) written to work_dir/compose.yml."""
     bench_dir = settings.benchmarks_dir / benchmark
     src_compose = bench_dir / "docker-compose.yml"
@@ -149,6 +149,29 @@ def _build_compose(benchmark: str, dynamic_flag: str, work_dir: Path) -> tuple[d
                 env.append(f"FLAG={dynamic_flag}")
         # embedded: handled post-up via exec sed
 
+    # If the challenge has a proxy_prefix (e.g. XBEN-084 basePath="/app"),
+    # healthchecks that curl localhost:<port> will fail because the app
+    # only responds on the prefixed path. Prepend the prefix to all
+    # healthcheck URLs that reference localhost.
+    if proxy_prefix:
+        prefix = proxy_prefix.strip("/")
+        for svc in services.values():
+            hc = svc.get("healthcheck")
+            if not hc or not isinstance(hc, dict):
+                continue
+            test = hc.get("test")
+            if isinstance(test, list) and len(test) >= 2:
+                # e.g. ["CMD", "curl", "--fail", "http://localhost:3000"]
+                # Find the URL element and prepend prefix to the path
+                for i, elem in enumerate(test):
+                    if isinstance(elem, str) and elem.startswith("http://localhost:"):
+                        # http://localhost:3000 -> http://localhost:3000/app
+                        parts = elem.split("/", 3)  # ['http:', '', 'localhost:3000', '']
+                        if len(parts) >= 3:
+                            path = parts[3] if len(parts) > 3 else ""
+                            test[i] = f"http://localhost:{parts[2]}/{prefix}/{path}".rstrip("/")
+                hc["test"] = test
+
     (work_dir / "compose.yml").write_text(yaml.safe_dump(cfg, sort_keys=False))
     return cfg, flag_service
 
@@ -193,13 +216,13 @@ def _compose_base(project: str, work_dir: Path) -> list[str]:
     return ["docker", "compose", "-p", project, "-f", str(work_dir / "compose.yml")]
 
 
-async def start_challenge(benchmark: str, attempt_id: int, dynamic_flag: str) -> ChallengeInstance:
+async def start_challenge(benchmark: str, attempt_id: int, dynamic_flag: str, proxy_prefix: str = "") -> ChallengeInstance:
     work_dir = settings.runs_dir / f"{benchmark}_{attempt_id}"
     work_dir.mkdir(parents=True, exist_ok=True)
     project = f"xben_{attempt_id}"
 
     cfg, flag_service = await asyncio.to_thread(
-        _build_compose, benchmark, dynamic_flag, work_dir
+        _build_compose, benchmark, dynamic_flag, work_dir, proxy_prefix
     )
 
     base = _compose_base(project, work_dir)

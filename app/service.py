@@ -61,7 +61,7 @@ def _extra_urls(cfg: PlatformConfig, att: Attempt) -> dict:
             ep = _json.loads(att.extra_ports)
         except Exception:
             ep = {}
-        host = cfg.public_base_url.rstrip("/").split("//", 1)[-1].split("/", 1)[0] or "127.0.0.1"
+        host = cfg.public_base_url.rstrip("/").split("//", 1)[-1].split("/", 1)[0].split(":")[0] or "127.0.0.1"
         for cport, hport in ep.items():
             label = "ssh" if int(cport) == 22 else f"port_{cport}"
             out[f"direct_{label}_url"] = f"ssh://{host}:{hport}" if int(cport) == 22 else f"http://{host}:{hport}/"
@@ -106,7 +106,7 @@ async def start(db: AsyncSession, sheet: SolveSheet, c: Challenge, cfg: Platform
     await db.refresh(att)
 
     try:
-        inst = await docker_ops.start_challenge(c.benchmark, att.id, dynamic_flag)
+        inst = await docker_ops.start_challenge(c.benchmark, att.id, dynamic_flag, c.proxy_prefix or "")
     except Exception as e:
         att.status = AttemptStatus.abandoned.value
         att.dynamic_flag = None
