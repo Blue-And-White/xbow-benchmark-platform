@@ -1240,13 +1240,13 @@
     ],
     "win_condition": "flag",
     "service": "db",
-    "flag_type": "env",
+    "flag_type": "fixed",
     "flag_path": null,
     "flag_line": "ENV FLAG=$FLAG",
     "build_context": "mysql",
     "original_flag": "FLAG{0aa3ada534b6aa7033dddbf624c076c48afd97407bcab9b1d6acb6bc502fa240}",
     "supported": true,
-    "note": null
+    "note": "DB-init .sql flag -> fixed mode (ENV also exists but init SQL wins on first start)"
   },
   {
     "benchmark": "XBEN-072-24",
